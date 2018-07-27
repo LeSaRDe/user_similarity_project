@@ -20,29 +20,55 @@ sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for meas
 def treestr_to_graph(treestr):
     ret_graph = nx.Graph()
     tree = Tree.fromstring(treestr)
+    #checkTree(tree, '0')
+    NODE_ID_COUNTER = 0
+    identifyNodes(tree, 's1:')
+    tree.set_label('s1:' + tree.label() + ':' + str(NODE_ID_COUNTER))
     tree_prod = tree.productions()
+    print tree_prod
     for i, p in enumerate(tree_prod):
         p = str(p).split('->')
         p[1] = p[1].split()
         start = p[0]
+        start = start.strip()
         ret_graph.add_node(start, type='node')
         for edge_e in p[1]:
-            edge_e = edge_e.replace("'", "")
-            if edge_e[:2] == "L:":
-                word_n_tags = edge_e[:2].split('#')
-                end = word_n_tag[0]
-                offset_tags = word_n_tag[1].split('+')
+            end = edge_e.replace("'", "")
+            end = end.strip()
+            if end[3:5] == "L:":
+                word_n_tags = end[5:].split('#')
+                offset_tags = word_n_tags[1].split('+')
                 ret_graph.add_node(end, type='leaf', tags = offset_tags)
-                ret_graph.add_edge(start, end, weight = 1, type = 'inter')
             else:
                 ret_graph.add_node(end, type='node')
-                ret_graph.add_edge(start, edge_e, weight = 1, type = 'inter')
-            
+            ret_graph.add_edge(start, end.strip(), weight = 1, type = 'inter')
+    return ret_graph
+
+def checkTree(tree, id):
+    for index, subtree in enumerate(tree):
+        subtree_id = id + ":" + str(index)
+        print "subtree:" + subtree_id
+        print subtree
+        if isinstance(subtree, ParentedTree):
+            checkTree(subtree, subtree_id)
+
+def identifyNodes(t, idx):
+    global NODE_ID_COUNTER
+    for index, subtree in enumerate(t):
+        if isinstance(subtree, Tree):
+            NODE_ID_COUNTER += 1
+            subtree.set_label(idx + subtree.label() + ':' + str(NODE_ID_COUNTER))
+            identifyNodes(subtree, idx)
+        elif isinstance(subtree, str):
+            newVal = idx + subtree
+            t[index] = newVal
+        NODE_ID_COUNTER += 1
+
 def send_wordsim_request(mode, input_1, input_2):
     if mode == 'oo':
-        synset_1_str = '+'.join(input_1) 
+        synset_1_str = '+'.join(input_1)
         synset_2_str = '+'.join(input_2)
-        send_str = mode + '#' + synset_1_str + '#' + synset_2_str 
+        send_str = mode + '#' + synset_1_str + '#' + synset_2_str
         c_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         c_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], 8306))
         c_sock.sendto(send_str, (socket.gethostbyaddr("127.0.0.1")[0], 8607))
@@ -61,21 +87,7 @@ def main():
     #print con_sent_tree
     #print t_production
     #treestr_to_graph(con_sent_tree)
-    
-    send_wordsim_request('oo', ['06387980n', '06388579n'], ['03588414n']) 
-    
-    
-    
-    #mytree = Tree('A', [Tree('B', ['C', 'D']), Tree('E', ['F'])])
-    #mytree2 = Tree('A', ['B', 'C'])
-    #print mytree2
 
-    #t_sent = sent_tokenize(sent)
-    #p_sent = con_parser.raw_parse(sent)
-    #print t_sent
-    #w2v_model = gensim.models.KeyedVectors.load_word2vec_format('/home/fcmeng/nasari/NASARIembed+UMBC_w2v.bin', binary=True)
-    #w2v_model.save('NASARIembed+UMBC_w2v+model')
-    #w2v_model = gensim.models.KeyedVectors.load("NASARIembed+UMBC_w2v+model")
-    #print w2v_model.similarity('woman', 'man')
+    send_wordsim_request('oo', ['06387980n', '06388579n'], ['03588414n'])
 
 main()
