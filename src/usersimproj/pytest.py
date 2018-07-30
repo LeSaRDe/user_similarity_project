@@ -21,13 +21,13 @@ NODE_ID_COUNTER = 0
 # the format of the input tree string needs follow the CoreNLP Tree def.
 # this format is compatible with NLTK Tree.
 # the graph is introduced from NetworkX.
-def treestr_to_graph(treestr):
+def treestr_to_graph(treestr, id):
     ret_graph = nx.Graph()
     tree = Tree.fromstring(treestr)
     #checkTree(tree, '0')
     global NODE_ID_COUNTER
-    identifyNodes(tree, 's1:')
-    tree.set_label('s1:' + tree.label() + ':' + str(NODE_ID_COUNTER))
+    identifyNodes(tree, id)
+    tree.set_label(id + ':' + tree.label() + ':' + str(NODE_ID_COUNTER))
     tree_prod = tree.productions()
     print tree_prod
     for i, p in enumerate(tree_prod):
@@ -61,10 +61,10 @@ def identifyNodes(t, idx):
     for index, subtree in enumerate(t):
         if isinstance(subtree, Tree):
             NODE_ID_COUNTER += 1
-            subtree.set_label(idx + subtree.label() + ':' + str(NODE_ID_COUNTER))
+            subtree.set_label(idx + ':' + subtree.label() + ':' + str(NODE_ID_COUNTER))
             identifyNodes(subtree, idx)
         elif isinstance(subtree, str):
-            newVal = idx + subtree
+            newVal = idx + ':' + subtree
             t[index] = newVal
         NODE_ID_COUNTER += 1
 
@@ -90,7 +90,7 @@ def main():
     #t_production = con_sent_tree.productions()
     #print con_sent_tree
     #print t_production
-    sent_tree = treestr_to_graph(con_sent_tree_str)
+    sent_tree = treestr_to_graph(con_sent_tree_str, 's1')
     plt.subplot(111)
     nx.draw(sent_tree, with_labels=True, font_weight='bold')
     plt.show()
