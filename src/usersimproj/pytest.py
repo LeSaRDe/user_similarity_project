@@ -6,10 +6,11 @@ import gensim
 import socket
 import networkx as nx
 import matplotlib.pyplot as plt
+import math
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
-con_sent_tree_str ='(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP (NP L:WordNet-based L:approach#04746134n) (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#06251033n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886869a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06414372n))))))' 
+con_sent_tree_str ='(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP (NP L:WordNet-based L:approach#04746134n) (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#06251033n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886869a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06414372n))))))'
 
 sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.'
 
@@ -124,20 +125,117 @@ def treestr_pair_to_graph(treestr_1, treestr_2, id_1, id_2):
     inter_edges = find_inter_edges(graph_1, graph_2)
     ret_graph = nx.compose(graph_1, graph_2)
     ret_graph.add_edges_from(inter_edges)
-    return ret_graph
+    return ret_graph, inter_edges, graph_1, graph_2
 
+def get_tags_n_leaves(cycle):
+    s1_nodes = {"tags": [], "leaves": []}
+    s2_nodes = {"tags": [], "leaves": []}
+    for node in cycle:
+        if node[:2] == 's1':
+            if node[3:4] == 'L':
+                s1_nodes["leaves"].append(node)
+            else:
+                s1_nodes["tags"].append(node)
+        elif node[:2] == 's2':
+            if node[3:4] == 'L':
+                s2_nodes["leaves"].append(node)
+            else:
+                s2_nodes["tags"].append(node)
+    return s1_nodes, s2_nodes
+
+def validate_cycle(cycle):
+    ret = True
+    s1_nodes, s2_nodes = get_tags_n_leaves(cycle)
+    if len(s1_nodes["leaves"]) > 2 or len(s2_nodes["leaves"]) > 2:
+        ret = False
+    return ret, s1_nodes["leaves"], s2_nodes["leaves"]
+
+def find_shortest_path(g1, g2, sub_nodes1, sub_nodes2):
+    p1 = set()
+    for m in sub_nodes1:
+        for n in sub_nodes1:
+            if sub_nodes1.index(m) < sub_nodes1.index(n):
+                p1.update(nx.shortest_path(g1, source=m, target=n))
+    p1 = list(p1)
+    p2 = set()
+    for m in sub_nodes2:
+        for n in sub_nodes2:
+            if sub_nodes2.index(m) < sub_nodes2.index(n):
+                p2.update(nx.shortest_path(g2, source=m, target=n))
+    p2 = list(p2)
+    return p1 + p2
+
+def find_min_cycle_basis(graph, tree_1, tree_2):
+    pre_cycle_basis = nx.minimum_cycle_basis(graph)
+    min_cycle_basis = []
+    while len(pre_cycle_basis):
+        b = pre_cycle_basis.pop()
+        v, sub_s1, sub_s2 = validate_cycle(b)
+        if not v:
+            p12 = find_shortest_path(tree_1, tree_2, sub_s1, sub_s2)
+            H = graph.subgraph(p12)
+            sub_cycle_basis = nx.minimum_cycle_basis(H)
+            for cc in sub_cycle_basis:
+                if cc not in pre_cycle_basis and cc not in min_cycle_basis and cc != b and set(cc) != set(b):
+                    pre_cycle_basis.append(cc)
+                else:
+                    print "[ERR]: Already has this cycle:"
+                    print cc
+        else:
+            min_cycle_basis.append(b)
+    return min_cycle_basis
+
+def cal_cycle_weight(cycle, inter_edges):
+    s1_nodes, s2_nodes = get_tags_n_leaves(cycle)
+    if len(s1_nodes["leaves"]) > 2 or len(s2_nodes["leaves"]) > 2:
+        print "[ERR]: Sentence has more than 2 words in one cycle!"
+    w1 = len(s1_nodes["tags"]) + 1
+    w2 = len(s2_nodes["tags"]) + 1
+    arch_weight = math.exp(math.exp(1)) / (math.pow(w1, 3) + math.pow(w2, 3))
+
+    inter_weight = 1
+    for link in inter_edges:
+        if link[0] in s1_nodes["leaves"]:
+            if link[1] in s2_nodes["leaves"]:
+                if link[2]["weight"] < inter_weight:
+                    inter_weight = link[2]["weight"]
+
+    ret = arch_weight * inter_weight
+    return ret
+
+def sim_from_tree_pair_graph(inter_edges, graph, tree_1, tree_2):
+    cycle_weights = []
+    if len(inter_edges) < 2:
+        return 0
+    min_cycle_basis = find_min_cycle_basis(graph, tree_1, tree_2)
+    for cycle in min_cycle_basis:
+        if len(cycle) < 3:
+            print "[ERR]: Invalid cycle in the basis: "
+            print cycle
+            continue;
+        cw = cal_cycle_weight(cycle, inter_edges)
+        cycle_weights.append(cw)
+    return sum(cycle_weights)
 
 def main():
     #con_sent_tree = Tree.fromstring(con_sent_tree_str)
     #t_production = con_sent_tree.productions()
     #print con_sent_tree
     #print t_production
-    sent_tree = treestr_to_graph(con_sent_tree_str, 's1')
+    #sent_tree = treestr_to_graph(con_sent_tree_str, 's1')
     #print sent_tree
-    find_inter_edges(sent_tree, sent_tree)
-    tp_graph = treestr_pair_to_graph(con_sent_tree_str, con_sent_tree_str, 's1', 's2')
-    print tp_graph
-    
+    #find_inter_edges(sent_tree, sent_tree)
+    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(con_sent_tree_str, con_sent_tree_str, 's1', 's2')
+    sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
+    print "----------------------------------------"
+    print tp_graph.nodes
+    print "----------------------------------------"
+    print tp_graph.edges
+    print "----------------------------------------"
+    print sim
+    print "----------------------------------------"
+
+
     #plt.subplot(111)
     #nx.draw(sent_tree, with_labels=True, font_weight='bold')
     #plt.show()
