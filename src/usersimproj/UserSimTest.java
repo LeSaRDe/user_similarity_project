@@ -5,6 +5,11 @@ import java.lang.*;
 import edu.stanford.nlp.trees.*;
 import edu.stanford.nlp.ling.*;
 
+import it.uniroma1.lcl.babelfy.commons.*;
+import it.uniroma1.lcl.babelfy.core.*;
+import it.uniroma1.lcl.babelfy.commons.annotation.SemanticAnnotation;
+import it.uniroma1.lcl.babelnet.*;
+import it.uniroma1.lcl.jlt.util.Language;
 
 public class UserSimTest
 {
@@ -15,6 +20,7 @@ public class UserSimTest
             // Step 1: Annotate input sentenses
             CoreNLPWrap corenlp_1 = new CoreNLPWrap("Align, Disambiguate, and Walk is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.", true);
             //CoreNLPWrap corenlp_1 = new CoreNLPWrap("In a move to reassert control over the party's seven senators, the national executive last night rejected Aden Ridgeway's bid to become interim leader, in favour of Senator Greig, a supporter of deposed leader Natasha Stott Despoja and an outspoken gay rights activist.", true);
+            //CoreNLPWrap corenlp_1 = new CoreNLPWrap("Are you intentionally putting the cancellation date into the expirationDate field. Or should this be. GitHub repository for the SecureDrop whistleblower platform. Do not submit tips here.The PDB files are in their own sub directories so adding them manually to debugger would be extremely tedious , and I am not sure if even that is possible. Or you can build libcc on your own machine and then build electron with it , the paths to PDBs are hardcoded in object files so debugger should be able to find the correct PDB files. Maybe we should rename the application to crates registry. Could you merge this please.The CMake-built cphstats will not work properly until this is merged.", true);
 
             CoreNLPWrap corenlp_2 = new CoreNLPWrap("Cash-strapped financial services group AMP has shelved a $400 million plan to buy shares back from investors and will raise $750 million in fresh capital after profits crashed in the six months to June 30.", false);
             
@@ -48,25 +54,26 @@ public class UserSimTest
             }*/
 
             // Output
-            //ArrayList<DeToken> l_tokens_1 = null;
+            ArrayList<DeToken> l_tokens_1 = null;
             //ArrayList<DeToken> l_tokens_2 = null;
-            //for(DeSentence sent_1 : l_sentences_1)
-            //{
+            for(DeSentence sent_1 : l_sentences_1)
+            {
                 //System.out.println("[S1]");
                 //System.out.println("    Orig: " + sent.getOrigSentence());
-                //l_tokens_1 = sent_1.getDeTokens();
-                /*
+                l_tokens_1 = sent_1.getDeTokens();
+                
                 for(DeToken token_1 : l_tokens_1)
                 {
-                    System.out.println("    Token " + l_tokens.indexOf(token) + ": " 
-                                            + "word = " + token.word() + ", "
-                                         + "lemma = " + token.lemma() + ", "
-                                         + "POS = " + token.pos() + ", "
-                                         + "NER = " + token.ner()); 
+                    System.out.println("    Token " + l_tokens_1.indexOf(token_1) + ": " 
+                                            + "word = " + token_1.word() + ", "
+                                         + "lemma = " + token_1.lemma() + ", "
+                                         + "POS = " + token_1.pos() + ", "
+                                         + "NER = " + token_1.ner()); 
                     System.out.print("    Synset = ");
-                    if(token.synset() != null && token.synset().size() != 0)
+                    if(token_1.synset() != null && token_1.synset().size() != 0)
                     {
-                        token.synset().forEach(sense->System.out.print(sense + " "));
+                        String bn_synset = bw.m_babelnet.getSynset(new WordNetSynsetID("wn:"+token_1.synset().get(0))).getID().getSimpleOffset();
+                        token_1.synset().forEach(sense->System.out.print(sense + ":" + bn_synset + " "));
                     }
                     else
                     {
@@ -75,8 +82,8 @@ public class UserSimTest
                     System.out.println("");
                 }
                 System.out.println("-----------------------------------------");
-                */
-            //}
+                
+            }
             /*for(DeSentence sent_2 : l_sentences_2)
             {
                 l_tokens_2 = sent_2.getDeTokens();

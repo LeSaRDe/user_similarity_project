@@ -9,11 +9,12 @@ import matplotlib.pyplot as plt
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
-con_sent_tree_str = '(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP L:approach#00941140n (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#04743605n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886629a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06387980n+06388579n))))))'
+con_sent_tree_str ='(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP (NP L:WordNet-based L:approach#04746134n) (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#06251033n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886869a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06414372n))))))' 
 
 sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.'
 
 NODE_ID_COUNTER = 0
+WORD_SIM_THRESHOLD = 0.40
 
 #con_parser = corenlp.CoreNLPParser(url='http://localhost:9000')
 
@@ -41,11 +42,14 @@ def treestr_to_graph(treestr, id):
             end = end.strip()
             if end[3:5] == "L:":
                 word_n_tags = end[5:].split('#')
-                offset_tags = word_n_tags[1].split('+')
-                ret_graph.add_node(end, type='leaf', tags = offset_tags)
+                if len(word_n_tags) >= 2:
+                    offset_tags = word_n_tags[1].split('+')
+                    ret_graph.add_node(end, type='leaf', tags = offset_tags)
+                else:
+                    ret_graph.add_node(end, type='leaf', tags = [])
             else:
                 ret_graph.add_node(end, type='node')
-            ret_graph.add_edge(start, end.strip(), weight = 1, type = 'inter')
+            ret_graph.add_edge(start, end.strip(), weight = 1, type = 'intra')
     return ret_graph
 
 def checkTree(tree, id):
@@ -69,6 +73,7 @@ def identifyNodes(t, idx):
         NODE_ID_COUNTER += 1
 
 def send_wordsim_request(mode, input_1, input_2):
+    ret = float(0)
     if mode == 'oo':
         synset_1_str = '+'.join(input_1)
         synset_2_str = '+'.join(input_2)
@@ -78,12 +83,49 @@ def send_wordsim_request(mode, input_1, input_2):
         c_sock.sendto(send_str, (socket.gethostbyaddr("127.0.0.1")[0], 8607))
         try:
             ret_str, serv_addr = c_sock.recvfrom(4096)
-            print float(ret_str)
+            ret = float(ret_str)
+            #print float(ret_str)
+            return ret
         except socket.error, msg:
             print "Something wrong happened!"
             print msg
         finally:
             c_sock.close()
+    return ret
+
+# this function finds all edges between two parsing trees w.r.t. two sentenses.
+# an edge will be created only when its weight is greater than a threshold.
+# 'tree_1' and 'tree_2' are two parsing trees.
+# what is returned is a collection of edges.
+def find_inter_edges(tree_1, tree_2):
+    edges = []
+    leaves_1 = filter(lambda(f, d): d['type'] == 'leaf', tree_1.nodes(data=True))
+    leaves_2 = filter(lambda(f, d): d['type'] == 'leaf', tree_2.nodes(data=True))
+    for leaf_1 in leaves_1:
+        synset_1 = leaf_1[1]['tags']
+        for leaf_2 in leaves_2:
+            sim = float(0)
+            synset_2 = leaf_2[1]['tags']
+            if len(synset_1) > 0 and len(synset_2) > 0:
+                sim = send_wordsim_request('oo', synset_1, synset_2)
+            if sim == float(0):
+                if leaf_1[0].split(':')[2].split('#')[0].strip() \
+                    == leaf_2[0].split(':')[2].split('#')[0].strip():
+                    sim = 1
+            if sim > WORD_SIM_THRESHOLD:
+                edges.append((leaf_1[0], leaf_2[0], {'weight': sim, 'type': 'inter'}))
+            #print "sim:" + leaf_1[0] + ":" + leaf_2[0] + ":" + str(sim)
+    #print edges
+    return edges
+
+def treestr_pair_to_graph(treestr_1, treestr_2, id_1, id_2):
+    graph_1 = treestr_to_graph(treestr_1, id_1)
+    graph_2 = treestr_to_graph(treestr_2, id_2)
+    inter_edges = find_inter_edges(graph_1, graph_2)
+    ret_graph = nx.compose(graph_1, graph_2)
+    ret_graph.add_edges_from(inter_edges)
+    return ret_graph
+
 
 def main():
     #con_sent_tree = Tree.fromstring(con_sent_tree_str)
@@ -91,9 +133,14 @@ def main():
     #print con_sent_tree
     #print t_production
     sent_tree = treestr_to_graph(con_sent_tree_str, 's1')
-    plt.subplot(111)
-    nx.draw(sent_tree, with_labels=True, font_weight='bold')
-    plt.show()
+    #print sent_tree
+    find_inter_edges(sent_tree, sent_tree)
+    tp_graph = treestr_pair_to_graph(con_sent_tree_str, con_sent_tree_str, 's1', 's2')
+    print tp_graph
+    
+    #plt.subplot(111)
+    #nx.draw(sent_tree, with_labels=True, font_weight='bold')
+    #plt.show()
 
     #send_wordsim_request('oo', ['06387980n', '06388579n'], ['03588414n'])
 

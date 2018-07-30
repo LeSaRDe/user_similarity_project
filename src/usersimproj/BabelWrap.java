@@ -20,8 +20,12 @@ public class BabelWrap
     /**
      * Class Members
      */
-    private Babelfy m_babelfy;
-    private BabelNet m_babelnet;
+    /**
+     * TODO
+     * private
+     */
+    public Babelfy m_babelfy;
+    public BabelNet m_babelnet;
 
     /**
      * Class Methods
@@ -30,6 +34,7 @@ public class BabelWrap
     {
         BabelfyParameters bp = new BabelfyParameters();
         bp.setAnnotationResource(BabelfyParameters.SemanticAnnotationResource.WN);
+        //bp.setAnnotationResource(BabelfyParameters.SemanticAnnotationResource.BN);
         bp.setMCS(BabelfyParameters.MCS.ON_WITH_STOPWORDS);
         bp.setScoredCandidates(BabelfyParameters.ScoredCandidates.ALL);
         m_babelfy = new Babelfy(bp);
@@ -51,6 +56,7 @@ public class BabelWrap
             taggedsent.add(new BabelfyToken(token.word(), token.lemma(), tagToPosTag(token.pos()), Language.EN));
         }
         List<SemanticAnnotation> babelfiedsent = m_babelfy.babelfy(taggedsent, Language.EN);
+        //List<SemanticAnnotation> babelfiedsent = m_babelfy.babelfy(dsent.getOrigSentence(), Language.EN);
         for(SemanticAnnotation sa : babelfiedsent)
         {
             List<String> l_wnso = m_babelnet.getSynset(new BabelSynsetID(sa.getBabelSynsetID()))
