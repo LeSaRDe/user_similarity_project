@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sqlite3
+from sqlite3 import Error
 import re
 # import nltk
 import contractions
@@ -79,11 +80,6 @@ def pre_clean(text):
     return new_text
 
 
-conn = sqlite3.connect('user_text_20170801_20170802.db')
-cursor = conn.execute('''select user_id, time_stamp, text_str from tb_user_text limit 1000;''')
-output_json = dict()
-
-
 def add_to_output_json(user, timestamp, sentences):
     if user not in output_json.keys():
         output_json[user] = dict()
@@ -94,32 +90,66 @@ def add_to_output_json(user, timestamp, sentences):
         else:
             output_json[user][timestamp] += sentences
 
+def setup_sqlite():
+    try:
+        db_name = input("Please input the DB name:")
+        if db_name == None or db_name == "":
+           print "[ERR]: DB name is invalid!"
+           return None
+        db_conn = sqlite3.connect(db_name)
+    except: Error as e:
+        print(e)
+        db_conn.close()
+        return None
+    return db_conn
 
-for row in cursor:
-    row_len = len(row[2])
-    sent_list = []
-    if 15 <= row_len <= 500:
-        print "Text length: %s\n\tOrg text:%s" % (row_len, row[2])
-        txt = denoise_text(row[2])
-        text_str = sent_tokenize(txt)
-        for i, sent in enumerate(text_str, start=1):
-            sent = remove_between_quotes(sent)
-            sent = pre_clean(sent)
-            words = word_tokenize(sent)
-            if len(words) > 1:
-                new_w_list = []
-                for w in words:
-                    if pp.match(w) is not None and str(w) != 'un' and len(w) < 15:
-                        new_w_list.append(str(w))
-                if len(new_w_list) > 1:
-                    new_sent = ' '.join(ww for ww in new_w_list)
-                    new_sent = new_sent + '.'
-                    print "\tNew sents[%s]：%s" % (i, new_sent)
-                    sent_list.append(new_sent)
-        if len(sent_list) > 0:
-            add_to_output_json(str(row[0]), str(row[1]), sent_list)
-conn.close()
+def add_to_output_sqlite(db_conn, user, timestamp, sentences):
+    db_cur = db_conn.cursor()
+    db_cur.execute(''' CREATE TABLE tb_user_text_full (user_id text, time text, clean_text text, tagged_text text, parse_trees text) ''')
+    db_conn.commit()
+    clean_text = "#".join(sentences)
+    insert_data = [user, timestamp, clean_text, "", "", ""]
+    db_cur.execute(' INSERT INTO tb_user_text VALUES (?, ?, ?, ?) ', insert_data)
+    return db_cur
 
-with open('output.json', 'w') as outfile:
-    json.dump(output_json, outfile)
-outfile.close()
+def main():
+    input_db = input("Please input the source db's name:")
+    conn = sqlite3.connect(input_db)
+    cursor = conn.execute('''select user_id, time_stamp, text_str from tb_user_text;''')
+    output_json = dict()
+
+    mode = input("Enter 'json' or 'sqlite' for output:")
+    for row in cursor:
+        row_len = len(row[2])
+        sent_list = []
+        if 15 <= row_len <= 500:
+            print "Text length: %s\n\tOrg text:%s" % (row_len, row[2])
+            txt = denoise_text(row[2])
+            text_str = sent_tokenize(txt)
+            for i, sent in enumerate(text_str, start=1):
+                sent = remove_between_quotes(sent)
+                sent = pre_clean(sent)
+                words = word_tokenize(sent)
+                if len(words) > 1:
+                    new_w_list = []
+                    for w in words:
+                        if pp.match(w) is not None and str(w) != 'un' and len(w) < 15:
+                            new_w_list.append(str(w))
+                    if len(new_w_list) > 1:
+                        new_sent = ' '.join(ww for ww in new_w_list)
+                        new_sent = new_sent + '.'
+                        print "\tNew sents[%s]：%s" % (i, new_sent)
+                        sent_list.append(new_sent)
+            if len(sent_list) > 0:
+                if mode == 'json':
+                    add_to_output_json(str(row[0]), str(row[1]), sent_list)
+                    with open('output.json', 'w') as outfile:
+                        json.dump(output_json, outfile)
+                    outfile.close()
+                else:
+                    db_conn = setup_sqlite()
+                    db_cur = add_to_output_sqlite(db_conn, str(row[0]), str(row[1]), sent_list)
+                    db_cur.commit()
+                    db_conn.close()
+    conn.close()
+

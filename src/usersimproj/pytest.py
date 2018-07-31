@@ -7,6 +7,11 @@ import socket
 import networkx as nx
 import matplotlib.pyplot as plt
 import math
+import multiprocessing
+from multiprocessing import Process
+from multiprocessing import Array
+import ctypes
+from ctypes import *
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
@@ -216,6 +221,39 @@ def sim_from_tree_pair_graph(inter_edges, graph, tree_1, tree_2):
         cw = cal_cycle_weight(cycle, inter_edges)
         cycle_weights.append(cw)
     return sum(cycle_weights)
+
+def sent_pair_sim(sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i):
+    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(sent_treestr_1, sent_treestr_2, 's1', 's2')
+    sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
+    sim_arr[sim_arr_i] = sim
+    return sim
+
+def doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, num_sent_pairs):
+    sim_arr = Array(c_double, num_sent_pairs)
+    sim_arr_i = 0
+    sim_procs = []
+    if l_sent_treestr_1 == None or l_sent_treestr_2 == None \
+        or len(l_sent_treestr_1) == 0 or len(l_sent_treestr_2) == 0:
+        print "[ERR]: Invalid input doc!"
+        return 0
+    for sent_treestr_1 in l_sent_treestr_1:
+        for sent_treestr_2 in l_sent_treestr_2:
+            p = Process(target = sent_pair_sim, args = (sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i))
+            sim_procs.append(t)
+            sim_arr_i += 1
+            p.start()
+    for proc in sim_procs:
+        proc.join()
+    print "[DBG]: doc_pair_sim is done!"
+    print "[DBG]: " + " ".join(map(str, sim_arr))
+    ret = sum(sim_arr)
+    print "[DBG]: " + "final doc sim = " + str(ret)
+    return ret
+            
+                
+
+    
+
 
 def main():
     #con_sent_tree = Tree.fromstring(con_sent_tree_str)
