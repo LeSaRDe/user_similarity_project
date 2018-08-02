@@ -17,6 +17,11 @@ def read_json_file(file_name):
             filtered_json_line_data = {key:val for (key, val) in json_line_data.items()
                                        if key == "actor" or key == "created_at" or key == "payload" or key == "type"}
 
+            #print "line=" + str(line)
+            if "actor" not in filtered_json_line_data:
+                continue
+            if "login_h" not in filtered_json_line_data["actor"]:
+                continue
             filtered_json_line_data.update({"user" : filtered_json_line_data["actor"]["login_h"]})
 
             if filtered_json_line_data["type"] == "CommitCommentEvent":
@@ -71,6 +76,6 @@ def main():
     output_name = raw_input("Please input output json file name:")
     print output_name
     write_json_file(output_name)
-
+    print output_name + " is done!"
 main()
 

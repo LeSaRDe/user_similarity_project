@@ -69,6 +69,7 @@ def main():
     g_total_ln_count = len(open(sys.argv[1], 'r').readlines())
     create_user_text_tb()
     insert_data_from_json(sys.argv[1])
+    g_conn.commit()
 
     g_cur.execute(''' SELECT * FROM tb_user_text ''')
     print(g_cur.fetchone())

@@ -13,6 +13,7 @@ from nltk import word_tokenize, sent_tokenize
 # from nltk.stem import LancasterStemmer, WordNetLemmatizer, PorterStemmer
 # import inspect
 import json
+import sys
 
 # wordnet_lemmatizer = WordNetLemmatizer()
 # print wordnet_lemmatizer.lemmatize("wamon")
@@ -173,6 +174,7 @@ def main():
                 sys.stdout.write("\r")
                 sys.stdout.write(prog)
                 sys.stdout.flush()
+        db_conn.commit()
         db_conn.close()
 
     conn.close()

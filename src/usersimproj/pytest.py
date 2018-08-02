@@ -250,7 +250,12 @@ def doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, num_sent_pairs):
     print "[DBG]: " + "final doc sim = " + str(ret)
     return ret
             
-                
+def fetchTreeStrFromDB(db_conn, user_id, time_s, time_e):                
+    db_cur = db_conn.execute('SELECT parse_trees FROM tb_user_text_full WHERE (user_id = ?) AND (strftime('%Y-%m-%dT%H:%M:%Sz', time) BETWEEN ? AND ?)', [user_id, time_s, time_e])
+    l_tree_str = []
+    for row in db_cur:
+        l_tree_str.append(row[0])
+    return l_tree_str
 
     
 

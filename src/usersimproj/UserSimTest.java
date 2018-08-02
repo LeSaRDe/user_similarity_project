@@ -18,21 +18,23 @@ public class UserSimTest
         try
         {
             // Step 1: Annotate input sentenses
-            CoreNLPWrap corenlp_1 = new CoreNLPWrap("Align, Disambiguate, and Walk is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.", true);
+            //CoreNLPWrap corenlp_1 = new CoreNLPWrap("Align, Disambiguate, and Walk is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.", true);
             //CoreNLPWrap corenlp_1 = new CoreNLPWrap("In a move to reassert control over the party's seven senators, the national executive last night rejected Aden Ridgeway's bid to become interim leader, in favour of Senator Greig, a supporter of deposed leader Natasha Stott Despoja and an outspoken gay rights activist.", true);
             //CoreNLPWrap corenlp_1 = new CoreNLPWrap("Are you intentionally putting the cancellation date into the expirationDate field. Or should this be. GitHub repository for the SecureDrop whistleblower platform. Do not submit tips here.The PDB files are in their own sub directories so adding them manually to debugger would be extremely tedious , and I am not sure if even that is possible. Or you can build libcc on your own machine and then build electron with it , the paths to PDBs are hardcoded in object files so debugger should be able to find the correct PDB files. Maybe we should rename the application to crates registry. Could you merge this please.The CMake-built cphstats will not work properly until this is merged.", true);
 
-            CoreNLPWrap corenlp_2 = new CoreNLPWrap("Cash-strapped financial services group AMP has shelved a $400 million plan to buy shares back from investors and will raise $750 million in fresh capital after profits crashed in the six months to June 30.", false);
+            //CoreNLPWrap corenlp_2 = new CoreNLPWrap("Cash-strapped financial services group AMP has shelved a $400 million plan to buy shares back from investors and will raise $750 million in fresh capital after profits crashed in the six months to June 30.", false);
             
+            /*
             corenlp_1.getDecomposedSentences();
             corenlp_1.getConstituentTrees();
             corenlp_2.getDecomposedSentences();
             corenlp_2.getConstituentTrees();
             List<DeSentence> l_sentences_1 = corenlp_1.getDeSentences();
             List<DeSentence> l_sentences_2 = corenlp_2.getDeSentences();
-
+            */
 
             // Step 2: Fetch BabelNet synsets for tokens in sentenses
+            /*
             BabelWrap bw = new BabelWrap(); 
             for(DeSentence sent : l_sentences_1)
             {
@@ -42,7 +44,7 @@ public class UserSimTest
                 {
                     System.out.println("[ERR]: UserSimTest getSynsets() err!");
                 }
-            }
+            }*/
             /*for(DeSentence sent : l_sentences_2)
             {
                 boolean ret_getsynsets = true;
@@ -54,6 +56,7 @@ public class UserSimTest
             }*/
 
             // Output
+            /*
             ArrayList<DeToken> l_tokens_1 = null;
             //ArrayList<DeToken> l_tokens_2 = null;
             for(DeSentence sent_1 : l_sentences_1)
@@ -84,6 +87,7 @@ public class UserSimTest
                 System.out.println("-----------------------------------------");
                 
             }
+            */
             /*for(DeSentence sent_2 : l_sentences_2)
             {
                 l_tokens_2 = sent_2.getDeTokens();
@@ -117,9 +121,9 @@ public class UserSimTest
             */
 
             // Constituent Tree
-            System.out.println("----------------------------------------");
-            System.out.println("Consituent Trees:");
-            System.out.println("[S1]:");
+            //System.out.println("----------------------------------------");
+            //System.out.println("Consituent Trees:");
+            //System.out.println("[S1]:");
             /*
             Tree testtree = Tree.valueOf("(S (NP I) (VP (V saw)) (NP him))");
             System.out.println(testtree.toString());
@@ -137,6 +141,7 @@ public class UserSimTest
             System.out.println(strbldr.toString());
             */
             //System.out.println("");
+            /*
             for(DeSentence sent1 : l_sentences_1)
             {
                 System.out.println(sent1.getOrigSentence());
@@ -158,7 +163,7 @@ public class UserSimTest
                 //System.out.println(strbldr.toString());
                 //const_tree.pennPrint();
                 //System.out.println(const_tree.toString());
-            }
+            }*/
             /*System.out.println("[S2]:");
             for(DeSentence sent2 : l_sentences_2)
             {
@@ -176,8 +181,17 @@ public class UserSimTest
             }*/
 
             // clean up
-            corenlp_1.shutdownCoreNLPClient();
-            corenlp_2.shutdownCoreNLPClient();
+            //corenlp_1.shutdownCoreNLPClient();
+            //corenlp_2.shutdownCoreNLPClient();
+
+
+
+            /**
+             * User Text
+             */
+            UserTextIn uti = new UserTextIn("jdbc:sqlite:/home/fcmeng/gh_data/Events/201708/user_text_clean_2017_08_01_0.db");
+            uti.processUserTextFromDB("8fExm1PvrW0skF3s5khE8Q", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z");
+            uti.awaitShutdown();
         }
         catch(Exception e)
         {

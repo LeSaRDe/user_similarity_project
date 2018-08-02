@@ -21,7 +21,7 @@ class UserTextIn
      * Class Members
      */
     private Connection m_db_conn = null;;
-    private ArrayList<UserTextRec> m_l_utrec = null;
+    private List<UserTextRec> m_l_utrec = null;
     private ExecutorService m_pool;
 
 
@@ -40,11 +40,53 @@ class UserTextIn
         {
             System.out.println("[ERR]: " + e.toString());
         }
-        m_l_utrec = new ArrayList<UserTextRec>();
+        m_l_utrec = Collections.synchronizedList(new ArrayList<UserTextRec>());
         m_pool = Executors.newCachedThreadPool();
     }
 
-    public void shutdownDB()
+    public void addUpdatedUserTextRec(UserTextRec utrec)
+    {
+        if(utrec == null)
+        {
+            return;
+        }
+
+        synchronized(m_l_utrec)
+        {
+            m_l_utrec.add(utrec);
+            //System.out.println("[DBG]: one rec added in");
+        }
+    }
+
+    public void awaitShutdown()
+    {
+        m_pool.shutdown();
+        try
+        {
+            while(true)
+            {
+                if(m_pool.awaitTermination(60, TimeUnit.SECONDS))
+                {
+                    //System.out.println("[DBG]: timeout commit...");
+                    commitUserTextRecs(MAX_CACHED);
+                    break;
+                }
+            }
+            //System.out.println("[DBG]: final commit...");
+            commitUserTextRecs(0);
+            shutdownDB();
+        }
+        catch(Exception e)
+        {
+            System.out.println("[ERR]: awaitShutdown: " + e.toString());
+        }
+        finally
+        {
+            m_pool.shutdownNow();
+        }
+    }
+
+    private void shutdownDB()
     {
         if (m_db_conn != null)
         {
@@ -70,7 +112,7 @@ class UserTextIn
         }
         else
         {
-            query_str = String.format("SELECT user_id, time, clean_text FROM tb_user_text_full WHERE (user_id = '%s') AND (time BETWEEN '%s' AND '%s')",
+            query_str = String.format("SELECT user_id, time, clean_text FROM tb_user_text_full WHERE (user_id = '%s') AND (strftime('%%Y-%%m-%%dT%%H:%%M:%%Sz', time) BETWEEN '%s' AND '%s')",
                                         user_id, time_s, time_e);
         }
         try
@@ -81,10 +123,12 @@ class UserTextIn
         {
             while(rs.next())
             {
-                m_pool.execute(new UserTextTask(m_db_conn, m_l_utrec,
+                m_pool.execute(new UserTextTask(this, m_db_conn,
                                 new UserTextRec(rs.getString("user_id"), rs.getString("time"), rs.getString("clean_text"), null, null)));
-                commitUserTextRecs(MAX_CACHED);
+                //commitUserTextRecs(MAX_CACHED);
             }
+            //System.out.println("[DBG]: for the rest commit...");
+            //commitUserTextRecs(0);
         }
         catch(Exception e)
         {
@@ -96,39 +140,48 @@ class UserTextIn
     {
         synchronized(m_l_utrec)
         {
+            //System.out.println("[DBG]: m_l_utrec.size() = " + m_l_utrec.size());
             if(m_l_utrec.size() > max_cached)
             {
+                //System.out.println("[DBG]: Enter commit...");
                 ArrayList<Integer> l_rm = new ArrayList<Integer>();
-                String update_str = "UPDATE tb_user_text_full SET tagged_text = ? , parse_trees = ? WHERE user_id = ?, time = ?";
+                String update_str = "UPDATE tb_user_text_full SET tagged_text = ?, parse_trees = ? WHERE user_id = ? AND time = ?";
                 try
                 (
-                   PreparedStatement st = m_db_conn.prepareStatement(update_str);
+                    PreparedStatement st = m_db_conn.prepareStatement(update_str);
                 )
                 {
+                    //System.out.println("[DBG]: prepare sql:" + st);
                   for(UserTextRec utc : m_l_utrec)
                   {
                       st.setString(1, utc.gettaggedtext());
                       st.setString(2, utc.getparsetrees());
                       st.setString(3, utc.getuserid());
                       st.setString(4, utc.gettime());
+                      //st.setString(5, utc.getcleantext());
+                      //System.out.println("[DBG]: commit sql:" + st);
                       st.executeUpdate();
 
                       l_rm.add(m_l_utrec.indexOf(utc));
+                    //System.out.println("[DBG]: commit rec: " + utc.gettaggedtext() + ":" + utc.getparsetrees() + ":" + utc.getuserid());
                   }
+                  //System.out.println("[DBG]: commit to DB...");
                   m_db_conn.commit();
                 }
                 catch(Exception e)
                 {
-                    System.out.println("[ERR]: " + e.toString());
+                    System.out.println("[ERR]: commitUserTextRecs" + e.toString());
                 }
 
                 Set<Integer> hs = new HashSet<Integer>();
                 hs.addAll(l_rm);
                 l_rm.clear();
                 l_rm.addAll(hs);
+                Collections.sort(l_rm, Collections.reverseOrder());
 
                 for(Integer i_rm : l_rm)
                 {
+                    //System.out.println("[DBG]: i_rm = " + i_rm.intValue());
                     m_l_utrec.remove(i_rm.intValue());
                 }
             }
