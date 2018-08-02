@@ -68,7 +68,8 @@ def main():
         print(arg)
         read_json_file(arg)
         #print(filtered_json_data)
-    output_name = input("Please input output json file name:")
+    output_name = raw_input("Please input output json file name:")
+    print output_name
     write_json_file(output_name)
 
 main()

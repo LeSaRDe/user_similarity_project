@@ -92,38 +92,48 @@ def add_to_output_json(user, timestamp, sentences):
 
 def setup_sqlite():
     try:
-        db_name = input("Please input the DB name:")
+        db_name = raw_input("Please input the DB name:")
         if db_name == None or db_name == "":
            print "[ERR]: DB name is invalid!"
            return None
         db_conn = sqlite3.connect(db_name)
-    except: Error as e:
+        db_cur = db_conn.cursor()
+        db_cur.execute(''' CREATE TABLE tb_user_text_full (user_id text, time text, clean_text text, tagged_text text, parse_trees text) ''')
+        db_conn.commit()
+    except Error as e:
         print(e)
         db_conn.close()
         return None
     return db_conn
 
 def add_to_output_sqlite(db_conn, user, timestamp, sentences):
+    clean_text = " ".join(sentences)
+    insert_data = [user, timestamp, clean_text, "", ""]
     db_cur = db_conn.cursor()
-    db_cur.execute(''' CREATE TABLE tb_user_text_full (user_id text, time text, clean_text text, tagged_text text, parse_trees text) ''')
-    db_conn.commit()
-    clean_text = "#".join(sentences)
-    insert_data = [user, timestamp, clean_text, "", "", ""]
-    db_cur.execute(' INSERT INTO tb_user_text VALUES (?, ?, ?, ?) ', insert_data)
+    db_cur.execute(' INSERT INTO tb_user_text_full VALUES (?, ?, ?, ?, ?) ', insert_data)
     return db_cur
 
 def main():
-    input_db = input("Please input the source db's name:")
+    input_db = raw_input("Please input the source db's name:")
     conn = sqlite3.connect(input_db)
+    cursor = conn.execute('''select count(*) from tb_user_text;''')
+    total_rec_count = cursor.fetchone()[0]
+    print "total record count = " + str(total_rec_count)
     cursor = conn.execute('''select user_id, time_stamp, text_str from tb_user_text;''')
     output_json = dict()
 
-    mode = input("Enter 'json' or 'sqlite' for output:")
+    mode = raw_input("Enter 'json' or 'sqlite' for output:")
+    if mode == 'sqlite':
+        db_conn = setup_sqlite()
+    db_rec_count_1 = 0
+    db_rec_count_2 = 0
+    db_rec_set = []
+
     for row in cursor:
         row_len = len(row[2])
         sent_list = []
         if 15 <= row_len <= 500:
-            print "Text length: %s\n\tOrg text:%s" % (row_len, row[2])
+            #print "Text length: %s\n\tOrg text:%s" % (row_len, row[2])
             txt = denoise_text(row[2])
             text_str = sent_tokenize(txt)
             for i, sent in enumerate(text_str, start=1):
@@ -138,7 +148,7 @@ def main():
                     if len(new_w_list) > 1:
                         new_sent = ' '.join(ww for ww in new_w_list)
                         new_sent = new_sent + '.'
-                        print "\tNew sents[%s]：%s" % (i, new_sent)
+                        #print "\tNew sents[%s]：%s" % (i, new_sent)
                         sent_list.append(new_sent)
             if len(sent_list) > 0:
                 if mode == 'json':
@@ -147,9 +157,24 @@ def main():
                         json.dump(output_json, outfile)
                     outfile.close()
                 else:
-                    db_conn = setup_sqlite()
-                    db_cur = add_to_output_sqlite(db_conn, str(row[0]), str(row[1]), sent_list)
-                    db_cur.commit()
-                    db_conn.close()
+                    db_rec_set.append([str(row[0]), str(row[1]), sent_list])
+
+    if mode == 'sqlite':
+        for rec in db_rec_set:
+            add_to_output_sqlite(db_conn, rec[0], rec[1], rec[2])
+            db_rec_count_1 += 1
+            if (int(db_rec_count_1 + db_rec_count_2*100.0) % 10000) == 0:
+                db_conn.commit()
+                print "[DBG]: write to db!"
+            if db_rec_count_1 >= 100.0:
+                db_rec_count_1 = 0
+                db_rec_count_2 += 1
+                prog = "{:.0%}".format((db_rec_count_1 + db_rec_count_2*100.0)/total_rec_count)
+                sys.stdout.write("\r")
+                sys.stdout.write(prog)
+                sys.stdout.flush()
+        db_conn.close()
+
     conn.close()
 
+main()

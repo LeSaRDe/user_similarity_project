@@ -88,6 +88,11 @@ public class DeSentence
         return m_l_tokens;
     }
 
+    public String toTaggedSentenceString()
+    {
+       return String.join(" ", m_l_tokens.stream().map(detoken->detoken.toTaggedTokenString()).collect(Collectors.toList()));
+    }
+
     public void setConstituentTree(Tree c_tree)
     {
         m_constituent_tree = c_tree;

@@ -11,12 +11,12 @@ g_count_2 = 0
 
 def setup_sqlite():
     try:
-        db_name = input("Please input the DB name:")
+        db_name = raw_input("Please input the DB name:")
         if db_name == None or db_name == "":
            print "[ERR]: DB name is invalid!"
            return None
         db_conn = sqlite3.connect(db_name)
-    except: Error as e:
+    except Error as e:
         print(e)
         db_conn.close()
         return None
@@ -37,12 +37,13 @@ def insert_data_from_json(file_name):
             #print(json_line_data['id_h'])
             insert_data = [json_line_data['user'], json_line_data['created_at'], json_line_data['type'], json_line_data['text_m']]
             g_cur.execute(' INSERT INTO tb_user_text VALUES (?, ?, ?, ?) ', insert_data)
-            g_conn.commit()
             g_count_1 += 1
             if g_count_1 >= 100.0:
                 g_count_1 = 0
                 g_count_2 += 1
             prog = "{:.0%}".format((g_count_1 + g_count_2*100.0)/g_total_ln_count)
+            if (int(g_count_1 + g_count_2*100.0) % 50000) == 0:
+                g_conn.commit()
             sys.stdout.write("\r")
             sys.stdout.write(prog)
             sys.stdout.flush()
@@ -65,9 +66,9 @@ def main():
         print('[ERR]:' + 'DB cursor is None!')
         return
 
-    g_total_ln_count = len(open(sys.argv[2], 'r').readlines())
+    g_total_ln_count = len(open(sys.argv[1], 'r').readlines())
     create_user_text_tb()
-    insert_data_from_json(sys.argv[2])
+    insert_data_from_json(sys.argv[1])
 
     g_cur.execute(''' SELECT * FROM tb_user_text ''')
     print(g_cur.fetchone())

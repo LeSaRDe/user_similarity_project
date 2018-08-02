@@ -16,13 +16,13 @@ public class DeToken
      * Class Members
      */
     // the word itself
-    private String m_word;
+    private String m_word = "";
     // the POS tag if any
-    private String m_pos;
+    private String m_pos = "";
     // the NER tag if any
-    private String m_ner;
+    private String m_ner = "";
     // the lemma of this word
-    private String m_lemma;
+    private String m_lemma = "";
 
     // the synset of this word
     // this member should not be an input but an output.
@@ -81,5 +81,15 @@ public class DeToken
     public List<String> synset()
     {
         return m_l_synset;
+    }
+
+    public String toTaggedTokenString()
+    {
+        String synset_str = "";
+        if(m_l_synset != null && m_l_synset.size() != 0)
+        {
+            String.join("+", m_l_synset);
+        }
+        return String.join("#", m_word, m_pos, m_ner, m_lemma, synset_str);
     }
 }
