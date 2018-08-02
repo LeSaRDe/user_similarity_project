@@ -8,15 +8,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.stream.*;
 
 import edu.stanford.nlp.trees.*;
 import edu.stanford.nlp.ling.*;
 
 /**
  * This class is playing a proxy role between CoreNLP and Babel.
- * Each sentence will be annotated, yet not parsed, and stored as 
+ * Each sentence will be annotated, yet not parsed, and stored as
  * an instance of DeSentence, in which each token in this sentence
- * is an instance of DeToken. 
+ * is an instance of DeToken.
  */
 public class DeSentence
 {
@@ -25,14 +26,14 @@ public class DeSentence
      */
     /**
      * NOTE:
-     * All constituent tags are defined in Penn Treebank II. 
+     * All constituent tags are defined in Penn Treebank II.
      * CoreNLP follows those definitions, and so does NLTK.
-     * Try not to customize or self-define any additional tags 
+     * Try not to customize or self-define any additional tags
      * outside these existing definitions.
      */
     // these tags are the ones in consideration.
     // modifying this list will change the parsing tree pruning.
-    private String[] m_constituent_tags = 
+    private String[] m_constituent_tags =
                         {"ROOT", "S", "SBAR", "SBARQ", "SINV", "SQ",
                         "ADJP", "ADVP", "FRAG", "RRC", "PP", "INTJ",
                         "NP", "NX", "NAC", "NN", "NNS", "NNP", "NNPS",
@@ -102,8 +103,8 @@ public class DeSentence
     {
         return m_constituent_tree;
     }
-    
-    // this function will attach the sense offsets and pos tags to each leaf. 
+
+    // this function will attach the sense offsets and pos tags to each leaf.
     // N.B. every leaf node will be formatted as follows: e.g. word#[12345678n, 23456789n]
     // if a leaf doesn't have any sense offset, then this leaf is just a token.
     public Tree getTaggedTree()
@@ -133,9 +134,9 @@ public class DeSentence
         }
         return m_tagged_tree;
     }
-    
+
     // this function will take a constituent tree and output a string representation
-    // of this tree with each leaf tagged with its sense offset and pos tag. 
+    // of this tree with each leaf tagged with its sense offset and pos tag.
     // the output string format can be accepted directly by nltk to produce an nltk Tree.
     public StringBuilder printTaggedTree()
     {
@@ -143,7 +144,7 @@ public class DeSentence
     }
 
     // this function returns a pruned tree.
-    // tagged -- if you need a tagged pruned tree 
+    // tagged -- if you need a tagged pruned tree
     // (i.e. with all leaves tagged with sense offset and pos).
     public Tree getPrunedTree(boolean tagged)
     {
@@ -164,8 +165,8 @@ public class DeSentence
             return m_pruned_tree;
         }
     }
-    
-    // reads stopwords from a file, and outputs a sorted string array 
+
+    // reads stopwords from a file, and outputs a sorted string array
     private String[] loadStopwordList(String swfilepath)
     {
         String [] ret = null;
@@ -192,7 +193,7 @@ public class DeSentence
     // check if the input word is a stopword
     private boolean isStopword(String word)
     {
-        int ret = Arrays.binarySearch(m_l_stopwords, word);    
+        int ret = Arrays.binarySearch(m_l_stopwords, word);
         //System.out.println("[DBG]: " + "binarySearch " + word + ":" + ret);
         return (ret < 0) ? false : true;
     }
@@ -200,12 +201,12 @@ public class DeSentence
     // check if a constituent tag is in consideration
     public boolean isValidConstituentTag(String tag)
     {
-        int ret = Arrays.binarySearch(m_constituent_tags, tag);    
+        int ret = Arrays.binarySearch(m_constituent_tags, tag);
         //System.out.println("[DBG]: " + "binarySearch " + word + ":" + ret);
         return (ret < 0) ? false : true;
     }
     // check if the input token is valid.
-    // since the resulting sentences from the clean-up stage would 
+    // since the resulting sentences from the clean-up stage would
     // only contain "-" or "." these two punctuations, then a regluar
     // token should contain "-" at most for "." can be dropped.
     // TODO
@@ -230,16 +231,16 @@ public class DeSentence
         //System.out.println("[DBG]:    Tree = " + c_tree.toString());
         // our impl will be a bit flashback here.
         // it means that we don't look at the root of c_tree first,
-        // instead, we get all its subtrees pruned, then we take a 
-        // look at the root. 
+        // instead, we get all its subtrees pruned, then we take a
+        // look at the root.
         // the reason we do it in this way is that, first, the leaves
-        // in the tree are considered as Tree's not merely strings, then 
+        // in the tree are considered as Tree's not merely strings, then
         // we can practice our recursion way down to the leaf level, and second,
         // somehow we have to prune every substree regardless of which level
         // we are at here.
 
         // now check if c_tree is actually just a leaf.
-        // if it is, then we check if it is a stopword or an unnecessary token. 
+        // if it is, then we check if it is a stopword or an unnecessary token.
         // if the leaf is a stopword or an unnecessary token, then we prune it.
         // otherwise, we return c_tree intact.
         if(c_tree.isLeaf())
@@ -247,7 +248,7 @@ public class DeSentence
             if(isStopword(c_tree.value().substring(2)) || !isValidToken(c_tree.value().substring(2)))
             {
                 // N.B. at this point, since a Tree cannot remove itself, then
-                // we have to return null back its parent, then its parent will 
+                // we have to return null back its parent, then its parent will
                 // remove it.
                 //System.out.println("[DBG]: Leaf cut off:" + c_tree.value());
                 return null;
@@ -258,12 +259,12 @@ public class DeSentence
             }
         }
         // if c_tree is not a leaf, then it has at least one child (i.e. a subtree).
-        // then we try to prune all of its children subtrees first. 
+        // then we try to prune all of its children subtrees first.
         // after pruning the children, if c_tree still has more than one children (i.e. at least two),
         // then we keep c_tree and its current children, and return c_tree back to its parent if any.
         // on the other hand, if c_tree only has one child left, then we return this child as the pruning
         // result on c_tree (i.e. cascading cut); and if c_tree has no child left,
-        // then we return null back to c_tree's parent. 
+        // then we return null back to c_tree's parent.
         // N.B. there are two exceptions.
         // 1. if the root of c_tree is 'ROOT', then we keep it anyway.
         // 2. if the root of c_tree is 'SXX', then we don't do cascading cut on it (i.e. 'SXX' can have
@@ -278,7 +279,7 @@ public class DeSentence
                 return null;
             }
 
-            // otherwise, c_tree is not a leaf, and totally interesting to us, 
+            // otherwise, c_tree is not a leaf, and totally interesting to us,
             // then we look into it to do pruning.
             List<Tree> l_subtrees = c_tree.getChildrenAsList();
             List<Integer> l_rm_subtrees = new ArrayList<Integer>();
@@ -306,12 +307,12 @@ public class DeSentence
                 c_tree.removeChild(l_rm_subtrees.get(j)-j);
             }
             l_subtrees = c_tree.getChildrenAsList();
-            
+
             if(c_tree.value().equals("ROOT"))
             {
                 return c_tree;
             }
-            else if(c_tree.value().matches("^S[A-Z]*") 
+            else if(c_tree.value().matches("^S[A-Z]*")
                 && (Arrays.binarySearch(m_constituent_tags, c_tree.value()) != -1))
             {
                 if(l_subtrees.size() == 0)

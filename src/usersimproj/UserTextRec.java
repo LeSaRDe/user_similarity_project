@@ -12,7 +12,7 @@ class UserTextRec
     private String m_tagged_text;
     private String m_parse_trees;
 
-    public UserTextRec(String user_id, String time, String clean_text, 
+    public UserTextRec(String user_id, String time, String clean_text,
                         String tagged_text, String parse_trees)
     {
         if(user_id == null || time == null || clean_text == null)
@@ -46,7 +46,7 @@ class UserTextRec
     {
         return m_tagged_text;
     }
-    
+
     public String getparsetrees()
     {
         return m_parse_trees;
@@ -59,6 +59,6 @@ class UserTextRec
 
     public void setparsetrees(String parse_trees)
     {
-        m_parse_trees = new String(parse_tree);
+        m_parse_trees = new String(parse_trees);
     }
 }

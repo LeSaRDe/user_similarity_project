@@ -1,5 +1,5 @@
 
-JFLAGS = -g -d bin -sourcepath src 
+JFLAGS = -g -d bin -sourcepath src
 JC = javac
 RM = rm
 
@@ -19,8 +19,11 @@ CLASSES = \
 		$(SRCPATH)/ADWWrap.java \
 		$(SRCPATH)/WordSimTask.java \
 		$(SRCPATH)/WordSimServer.java \
+		$(SRCPATH)/UserTextIn.java \
+		$(SRCPATH)/UserTextRec.java \
+		$(SRCPATH)/UserTextTask.java \
 		$(SRCPATH)/TestClient.java \
-		$(SRCPATH)/UserSimTest.java 
+		$(SRCPATH)/UserSimTest.java
 
 default: classes
 
@@ -31,4 +34,3 @@ env:
 
 clean:
 	$(RM) -rf bin/*
-

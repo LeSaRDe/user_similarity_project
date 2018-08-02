@@ -3,6 +3,7 @@ package usersimproj;
 import java.io.*;
 import java.util.*;
 import java.sql.*;
+import java.util.stream.*;
 
 class UserTextTask implements Runnable
 {
@@ -19,7 +20,7 @@ class UserTextTask implements Runnable
 
     public void run()
     {
-        CoreNLPWrap corenlp = new CoreNLPWrap(m_in_utrec.getcleantext(), true); 
+        CoreNLPWrap corenlp = new CoreNLPWrap(m_in_utrec.getcleantext(), true);
         corenlp.getDecomposedSentences();
         corenlp.getConstituentTrees();
         List<DeSentence> l_sentences = corenlp.getDeSentences();
@@ -33,4 +34,3 @@ class UserTextTask implements Runnable
         }
     }
 }
-

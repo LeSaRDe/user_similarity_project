@@ -4,9 +4,10 @@ import java.io.*;
 import java.util.*;
 import java.sql.*;
 import java.util.concurrent.*;
+import java.util.stream.*;
 
-import org.json.simple.*;
-import org.json.simple.parser.*
+//import org.json.simple.*;
+//import org.json.simple.parser.*;
 
 
 class UserTextIn
@@ -14,13 +15,13 @@ class UserTextIn
     /**
      * Class Constants
      */
-    public final int MAX_CACHED 5000;
+    public final int MAX_CACHED = 5000;
 
     /**
      * Class Members
      */
     private Connection m_db_conn = null;;
-    private ArrayList<UserTextRec> m_l_utrec = null; 
+    private ArrayList<UserTextRec> m_l_utrec = null;
     private ExecutorService m_pool;
 
 
@@ -51,15 +52,16 @@ class UserTextIn
             {
                 m_db_conn.close();
             }
-            catch(Exception)
+            catch(Exception e)
             {
                 System.out.println("[ERR]: " + e.toString());
             }
         }
     }
 
-    // this function fetches user text for a given user within a certian time range
-    public String fetchUserTextFromDB(String user_id, String time_s, String time_e) 
+    // this function fetches user text for a given user within a certian time range,
+    // and writes back annotated text and parse trees to DB.
+    public void processUserTextFromDB(String user_id, String time_s, String time_e)
     {
         String query_str = null;
         if(time_s == null || time_e == null)
@@ -68,7 +70,7 @@ class UserTextIn
         }
         else
         {
-            query_str = String.format("SELECT user_id, time, clean_text FROM tb_user_text_full WHERE (user_id = '%s') AND (time BETWEEN '%s' AND '%s')", 
+            query_str = String.format("SELECT user_id, time, clean_text FROM tb_user_text_full WHERE (user_id = '%s') AND (time BETWEEN '%s' AND '%s')",
                                         user_id, time_s, time_e);
         }
         try
@@ -79,7 +81,7 @@ class UserTextIn
         {
             while(rs.next())
             {
-                m_pool.execute(new UserTextTask(m_db_conn, m_l_utrec, 
+                m_pool.execute(new UserTextTask(m_db_conn, m_l_utrec,
                                 new UserTextRec(rs.getString("user_id"), rs.getString("time"), rs.getString("clean_text"), null, null)));
                 commitUserTextRecs(MAX_CACHED);
             }
@@ -97,29 +99,28 @@ class UserTextIn
             if(m_l_utrec.size() > max_cached)
             {
                 ArrayList<Integer> l_rm = new ArrayList<Integer>();
-                String update_str = null;
-                for(UserTextRec utc : m_l_utrec)
+                String update_str = "UPDATE tb_user_text_full SET tagged_text = ? , parse_trees = ? WHERE user_id = ?, time = ?";
+                try
+                (
+                   PreparedStatement st = m_db_conn.prepareStatement(update_str);
+                )
                 {
-                    update_str = "UPDATE tb_user_text_full SET tagged_text = ? , parse_trees = ? WHERE user_id = ?, time = ?";
-                    try
-                    (
-                       PreparedStatement st = m_db_conn.prepareStatement(update_str); 
-                    )
-                    {
-                        st.setString(1, utc.gettaggedtext());
-                        st.setString(2, utc.getparsetrees());
-                        st.setString(3, utc.getuserid());
-                        st.setString(4, utc.gettime());
-                        st.executeUpdate();
-                    }
-                    catch(Exception e)
-                    {
-                        System.out.println("[ERR]: " + e.toString());
-                    }
+                  for(UserTextRec utc : m_l_utrec)
+                  {
+                      st.setString(1, utc.gettaggedtext());
+                      st.setString(2, utc.getparsetrees());
+                      st.setString(3, utc.getuserid());
+                      st.setString(4, utc.gettime());
+                      st.executeUpdate();
 
-                    l_rm.add(m_l_utrec.indexOf(utc));
+                      l_rm.add(m_l_utrec.indexOf(utc));
+                  }
+                  m_db_conn.commit();
                 }
-                m_db_conn.commit();
+                catch(Exception e)
+                {
+                    System.out.println("[ERR]: " + e.toString());
+                }
 
                 Set<Integer> hs = new HashSet<Integer>();
                 hs.addAll(l_rm);
