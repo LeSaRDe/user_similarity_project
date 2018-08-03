@@ -30,7 +30,8 @@ pp = re.compile("^[A-Za-z-,]*$")
 
 
 def strip_html(text):
-    soup = BeautifulSoup(text, "html.parser")
+    #soup = BeautifulSoup(text, "html.parser")
+    soup = BeautifulSoup(text, "lxml")
     return soup.get_text()
 
 

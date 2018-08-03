@@ -12,15 +12,22 @@ from multiprocessing import Process
 from multiprocessing import Array
 import ctypes
 from ctypes import *
+import sqlite3
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
 con_sent_tree_str ='(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP (NP L:WordNet-based L:approach#04746134n) (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#06251033n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886869a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06414372n))))))'
 
+test_sent_tree_str_1 = '(ROOT (S (SBAR (S (VP L:mentioned#01024190v (NP L:UI L:comments#06762711n)))) (VP L:think#00689344v (SBAR (S (VP L:like#00691665v (S (VP L:avoid#00811375v (S (VP L:Getting (NP (NP L:Started#00345761v L:tab#04379096n) (NP L:package#03871083n (S (VP L:avoid#00811375v (NP L:customer#09984659n L:confusion#00379754n)))))))))))))))'
+
+test_sent_tree_str_2 = '(ROOT (S (S L:probably#00138611r+00138611r L:capability#05202497n (SBAR (S L:driver#06574473n (VP L:set#01062395v L:capability#05202497n (SBAR (S (VP L:notice#01058574v (SBAR (S L:Chrome#14810704n))))))))) (S L:run#02730326v)))'
+
 sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.'
 
 NODE_ID_COUNTER = 0
-WORD_SIM_THRESHOLD = 0.40
+WORD_SIM_THRESHOLD = 0.4
+SEND_PORT = 8607
+RECV_PORT = 2001
 
 #con_parser = corenlp.CoreNLPParser(url='http://localhost:9000')
 
@@ -36,7 +43,7 @@ def treestr_to_graph(treestr, id):
     identifyNodes(tree, id)
     tree.set_label(id + ':' + tree.label() + ':' + str(NODE_ID_COUNTER))
     tree_prod = tree.productions()
-    print tree_prod
+    #print tree_prod
     for i, p in enumerate(tree_prod):
         p = str(p).split('->')
         p[1] = p[1].split()
@@ -56,37 +63,45 @@ def treestr_to_graph(treestr, id):
             else:
                 ret_graph.add_node(end, type='node')
             ret_graph.add_edge(start, end.strip(), weight = 1, type = 'intra')
+    #print "tree_str_to_graph:"
+    #print ret_graph.nodes
     return ret_graph
 
 def checkTree(tree, id):
     for index, subtree in enumerate(tree):
         subtree_id = id + ":" + str(index)
-        print "subtree:" + subtree_id
-        print subtree
+        #print "subtree:" + subtree_id
+        #print subtree
         if isinstance(subtree, ParentedTree):
             checkTree(subtree, subtree_id)
 
 def identifyNodes(t, idx):
     global NODE_ID_COUNTER
+    #print "identifyNodes: " + idx
     for index, subtree in enumerate(t):
+        #print "find a type: " + str(type(subtree))
         if isinstance(subtree, Tree):
             NODE_ID_COUNTER += 1
             subtree.set_label(idx + ':' + subtree.label() + ':' + str(NODE_ID_COUNTER))
             identifyNodes(subtree, idx)
-        elif isinstance(subtree, str):
+        #elif isinstance(subtree, str):
+        else:
             newVal = idx + ':' + subtree
             t[index] = newVal
         NODE_ID_COUNTER += 1
 
 def send_wordsim_request(mode, input_1, input_2):
+    global SEND_PORT
+    global RECV_PORT
     ret = float(0)
     if mode == 'oo':
         synset_1_str = '+'.join(input_1)
         synset_2_str = '+'.join(input_2)
         send_str = mode + '#' + synset_1_str + '#' + synset_2_str
         c_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        c_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], 8306))
-        c_sock.sendto(send_str, (socket.gethostbyaddr("127.0.0.1")[0], 8607))
+        c_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        c_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], RECV_PORT))
+        c_sock.sendto(send_str, (socket.gethostbyaddr("127.0.0.1")[0], SEND_PORT))
         try:
             ret_str, serv_addr = c_sock.recvfrom(4096)
             ret = float(ret_str)
@@ -107,6 +122,14 @@ def find_inter_edges(tree_1, tree_2):
     edges = []
     leaves_1 = filter(lambda(f, d): d['type'] == 'leaf', tree_1.nodes(data=True))
     leaves_2 = filter(lambda(f, d): d['type'] == 'leaf', tree_2.nodes(data=True))
+    #print "find_inter_edges:"
+    #print tree_1.edges
+    #print tree_2.edges
+    #print tree_1.nodes
+    #print tree_2.nodes
+    #print "leaves:"
+    #print leaves_1
+    #print leaves_2
     for leaf_1 in leaves_1:
         synset_1 = leaf_1[1]['tags']
         for leaf_2 in leaves_2:
@@ -114,13 +137,16 @@ def find_inter_edges(tree_1, tree_2):
             synset_2 = leaf_2[1]['tags']
             if len(synset_1) > 0 and len(synset_2) > 0:
                 sim = send_wordsim_request('oo', synset_1, synset_2)
+                #print "get the sim = " + str(sim)
             if sim == float(0):
                 if leaf_1[0].split(':')[2].split('#')[0].strip() \
                     == leaf_2[0].split(':')[2].split('#')[0].strip():
                     sim = 1
             if sim > WORD_SIM_THRESHOLD:
                 edges.append((leaf_1[0], leaf_2[0], {'weight': sim, 'type': 'inter'}))
+                #print "add an edge!"
             #print "sim:" + leaf_1[0] + ":" + leaf_2[0] + ":" + str(sim)
+    #print "edges = "
     #print edges
     return edges
 
@@ -226,35 +252,59 @@ def sent_pair_sim(sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i):
     tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(sent_treestr_1, sent_treestr_2, 's1', 's2')
     sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
     sim_arr[sim_arr_i] = sim
+    if sim != 0:
+        print "----------------------------------------"
+        print "sent 1 = " + sent_treestr_1
+        print "sent 2 = " + sent_treestr_2
+        print "sim = " + str(sim)
     return sim
 
 def doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, num_sent_pairs):
-    sim_arr = Array(c_double, num_sent_pairs)
+    global RECV_PORT
+    sim_arr = multiprocessing.Array(ctypes.c_double, num_sent_pairs)
     sim_arr_i = 0
     sim_procs = []
+    proc_id = 0
     if l_sent_treestr_1 == None or l_sent_treestr_2 == None \
         or len(l_sent_treestr_1) == 0 or len(l_sent_treestr_2) == 0:
         print "[ERR]: Invalid input doc!"
         return 0
     for sent_treestr_1 in l_sent_treestr_1:
         for sent_treestr_2 in l_sent_treestr_2:
+            #print "create process: " + str(proc_id)
+            RECV_PORT += 2
             p = Process(target = sent_pair_sim, args = (sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i))
-            sim_procs.append(t)
+            proc_id += 1
+            sim_procs.append(p)
             sim_arr_i += 1
             p.start()
-    for proc in sim_procs:
-        proc.join()
+            #p.join()
+    while(len(sim_procs) != 0):
+        for proc in sim_procs:
+            #print "join:" + proc.name
+            if not proc.is_alive():
+                sim_procs.remove(proc)
+            proc.join(1)
     print "[DBG]: doc_pair_sim is done!"
     print "[DBG]: " + " ".join(map(str, sim_arr))
     ret = sum(sim_arr)
     print "[DBG]: " + "final doc sim = " + str(ret)
     return ret
+
+def isValidTree(tree_str):
+    if tree_str == "" or tree_str == "ROOT":
+        return False
+    return True
+
             
 def fetchTreeStrFromDB(db_conn, user_id, time_s, time_e):                
-    db_cur = db_conn.execute('SELECT parse_trees FROM tb_user_text_full WHERE (user_id = ?) AND (strftime('%Y-%m-%dT%H:%M:%Sz', time) BETWEEN ? AND ?)', [user_id, time_s, time_e])
+    query_in = [user_id, time_s, time_e]
+    db_cur = db_conn.execute('''SELECT parse_trees FROM tb_user_text_full WHERE (user_id = ?) AND (strftime('%Y-%m-%dT%H:%M:%Sz', time) BETWEEN ? AND ?)''', query_in)
     l_tree_str = []
     for row in db_cur:
-        l_tree_str.append(row[0])
+        #print row[0]
+        l_tree_str_one_row = list(filter(lambda s : isValidTree(s), row[0].split('|')))
+        l_tree_str = l_tree_str + l_tree_str_one_row
     return l_tree_str
 
     
@@ -268,12 +318,22 @@ def main():
     #sent_tree = treestr_to_graph(con_sent_tree_str, 's1')
     #print sent_tree
     #find_inter_edges(sent_tree, sent_tree)
-    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(con_sent_tree_str, con_sent_tree_str, 's1', 's2')
-    sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
-    print "----------------------------------------"
-    print tp_graph.nodes
-    print "----------------------------------------"
-    print tp_graph.edges
+
+    #tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(test_sent_tree_str_1, test_sent_tree_str_2, 's1', 's2')
+    #sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
+    #arr = multiprocessing.Array(ctypes.c_double, 10)
+    #sim = sent_pair_sim(test_sent_tree_str_1, test_sent_tree_str_2, arr, 0) 
+
+    db_conn = sqlite3.connect('/home/fcmeng/gh_data/Events/201708/user_text_clean_2017_08_01_0.db') 
+    l_sent_treestr_1 = fetchTreeStrFromDB(db_conn,"pos5jkJAZofH00dC9RaEMw", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z")
+    l_sent_treestr_2 = fetchTreeStrFromDB(db_conn,"-AD6F5U5BYGglII8N0S1Ig", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z")
+    print len(l_sent_treestr_1)*len(l_sent_treestr_2)
+    sim = doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, len(l_sent_treestr_1)*len(l_sent_treestr_2))
+    
+    #print "----------------------------------------"
+    #print l_sent_treestr_1
+    #print "----------------------------------------"
+    #print l_sent_treestr_2
     print "----------------------------------------"
     print sim
     print "----------------------------------------"

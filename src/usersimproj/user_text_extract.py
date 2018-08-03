@@ -70,11 +70,11 @@ def write_json_file(file_name):
 
 def main():
     for arg in sys.argv[1:]:
-        print(arg)
+        #print(arg)
         read_json_file(arg)
         #print(filtered_json_data)
     output_name = raw_input("Please input output json file name:")
-    print output_name
+    #print output_name
     write_json_file(output_name)
     print output_name + " is done!"
 main()

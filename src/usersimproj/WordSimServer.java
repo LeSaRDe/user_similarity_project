@@ -15,7 +15,7 @@ class WordSimServer
      * Constants
      */
     // use this constant if we go with FixedThreadPool
-    public final int MAX_THREADS = 50;
+    public final int MAX_THREADS = 500;
     public final int SERV_PORT = 8607;
     
     // FIXED means FixedThreadPool.
@@ -103,7 +103,7 @@ class WordSimServer
 
     public static void main(String[] argv)
     {
-        WordSimServer ws = new WordSimServer(WordSimServer.ThreadPoolMode.CACHED);
+        WordSimServer ws = new WordSimServer(WordSimServer.ThreadPoolMode.FIXED);
         ws.go();
     }
 }

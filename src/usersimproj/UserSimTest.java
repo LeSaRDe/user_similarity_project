@@ -190,7 +190,7 @@ public class UserSimTest
              * User Text
              */
             UserTextIn uti = new UserTextIn("jdbc:sqlite:/home/fcmeng/gh_data/Events/201708/user_text_clean_2017_08_01_0.db");
-            uti.processUserTextFromDB("8fExm1PvrW0skF3s5khE8Q", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z");
+            uti.processUserTextFromDB("pos5jkJAZofH00dC9RaEMw", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z");
             uti.awaitShutdown();
         }
         catch(Exception e)

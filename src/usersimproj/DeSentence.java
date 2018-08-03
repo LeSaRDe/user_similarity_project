@@ -132,6 +132,7 @@ public class DeSentence
                 leaf.setLabel(slf.newLabel("L:" + leaf.value()));
             }
         }
+        //System.out.println("[DBG]: getTaggedTree: " + m_tagged_tree.toString());
         return m_tagged_tree;
     }
 
@@ -154,6 +155,7 @@ public class DeSentence
             {
                 m_tagged_pruned_tree = pruneConstituentTree(getTaggedTree());
             }
+            //System.out.println("[DBG]: getPrunedTree: " + m_tagged_pruned_tree.toString());
             return m_tagged_pruned_tree;
         }
         else
