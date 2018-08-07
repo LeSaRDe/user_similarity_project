@@ -83,9 +83,15 @@ public class CoreNLPWrap
         }
         else
         {
-            m_client = new StanfordCoreNLPClient(m_props, "http://localhost", 9000, 10);
+            m_client = new StanfordCoreNLPClient(m_props, 
+                UserSimConstants.CORENLP_SERV_HOSTNAME, 
+                UserSimConstants.CORENLP_SERV_PORT,
+                UserSimConstants.CORENLP_CLIENT_THREAD);
+            //System.out.println("[DBG]: CoreNLPWrap in_txt = " + in_txt);
             Annotation annodoc = new Annotation(in_txt);
+            //System.out.println("[DBG]: CoreNLPWrap annotation1");
             m_client.annotate(annodoc);
+            //System.out.println("[DBG]: CoreNLPWrap annotation2");
             coredoc = new CoreDocument(annodoc);
         }
         m_sentences = coredoc.sentences();

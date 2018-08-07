@@ -14,6 +14,8 @@ from nltk import word_tokenize, sent_tokenize
 # import inspect
 import json
 import sys
+import os
+import time
 
 # wordnet_lemmatizer = WordNetLemmatizer()
 # print wordnet_lemmatizer.lemmatize("wamon")
@@ -92,12 +94,12 @@ def add_to_output_json(user, timestamp, sentences):
         else:
             output_json[user][timestamp] += sentences
 
-def setup_sqlite():
+def setup_sqlite(db_name):
     try:
-        db_name = raw_input("Please input the DB name:")
-        if db_name == None or db_name == "":
-           print "[ERR]: DB name is invalid!"
-           return None
+        #db_name = raw_input("Please input the DB name:")
+        #if db_name == None or db_name == "":
+        #   print "[ERR]: DB name is invalid!"
+        #   return None
         db_conn = sqlite3.connect(db_name)
         db_cur = db_conn.cursor()
         db_cur.execute(''' CREATE TABLE tb_user_text_full (user_id text, time text, clean_text text, tagged_text text, parse_trees text) ''')
@@ -115,8 +117,12 @@ def add_to_output_sqlite(db_conn, user, timestamp, sentences):
     db_cur.execute(' INSERT INTO tb_user_text_full VALUES (?, ?, ?, ?, ?) ', insert_data)
     return db_cur
 
+# argv[1]: folder path
 def main():
-    input_db = raw_input("Please input the source db's name:")
+    #input_db = raw_input("Please input the source db's name:")
+    input_db = sys.argv[1] + '_step_2.db'
+    while not os.path.exists(input_db):
+        time.sleep(2)
     conn = sqlite3.connect(input_db)
     cursor = conn.execute('''select count(*) from tb_user_text;''')
     total_rec_count = cursor.fetchone()[0]
@@ -124,9 +130,13 @@ def main():
     cursor = conn.execute('''select user_id, time_stamp, text_str from tb_user_text;''')
     output_json = dict()
 
-    mode = raw_input("Enter 'json' or 'sqlite' for output:")
-    if mode == 'sqlite':
-        db_conn = setup_sqlite()
+    mode = 'sqlite'
+    db_tmp_name = sys.argv[1] + '_step_3.db.tmp'
+    db_name = sys.argv[1] + '_step_3.db'
+    db_conn = setup_sqlite(db_tmp_name)
+    #mode = raw_input("Enter 'json' or 'sqlite' for output:")
+    #if mode == 'sqlite':
+    #    db_conn = setup_sqlite()
     db_rec_count_1 = 0
     db_rec_count_2 = 0
     db_rec_set = []
@@ -167,16 +177,17 @@ def main():
             db_rec_count_1 += 1
             if (int(db_rec_count_1 + db_rec_count_2*100.0) % 10000) == 0:
                 db_conn.commit()
-                print "[DBG]: write to db!"
+                #print "[DBG]: write to db!"
             if db_rec_count_1 >= 100.0:
                 db_rec_count_1 = 0
                 db_rec_count_2 += 1
-                prog = "{:.0%}".format((db_rec_count_1 + db_rec_count_2*100.0)/total_rec_count)
-                sys.stdout.write("\r")
-                sys.stdout.write(prog)
-                sys.stdout.flush()
+            prog = "{:.0%}".format((db_rec_count_1 + db_rec_count_2*100.0)/total_rec_count)
+            sys.stdout.write("\r")
+            sys.stdout.write(prog)
+            sys.stdout.flush()
         db_conn.commit()
         db_conn.close()
+        os.rename(db_tmp_name, db_name)
 
     conn.close()
 

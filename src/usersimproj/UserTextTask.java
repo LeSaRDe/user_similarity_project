@@ -22,20 +22,26 @@ class UserTextTask implements Runnable
     {
         //System.out.println("[DBG]: UserTextTask run...");
         CoreNLPWrap corenlp = new CoreNLPWrap(m_in_utrec.getcleantext(), true);
+        //System.out.println("[DBG]: get CoreNLP...");
         corenlp.getDecomposedSentences();
         corenlp.getConstituentTrees();
         List<DeSentence> l_sentences = corenlp.getDeSentences();
-        BabelWrap bw = new BabelWrap();
-        for(DeSentence sent : l_sentences)
+        if(UserSimConstants.EN_BABELFY)
         {
-            bw.getSynsets(sent);
+            BabelWrap bw = new BabelWrap();
+            for(DeSentence sent : l_sentences)
+            {
+                bw.getSynsets(sent);
+            }
         }
         String sent_str = String.join("|", l_sentences.stream().map(desent->desent.toTaggedSentenceString()).collect(Collectors.toList()));
         String tree_str = String.join("|", l_sentences.stream().map(desent->desent.getPrunedTree(true).toString()).collect(Collectors.toList()));
-        //System.out.println("[DBG]: parse_trees = " + tree_str);
+        System.out.println("[DBG]: parse_trees = " + tree_str);
         m_in_utrec.settaggedtext(sent_str);
         m_in_utrec.setparsetrees(tree_str);
         m_utin.addUpdatedUserTextRec(m_in_utrec);
+        corenlp.shutdownCoreNLPClient();
+        corenlp = null;
         //System.out.println("[DBG]: UserTextTask one record ready!");
     }
 }

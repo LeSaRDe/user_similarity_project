@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 
 filtered_json_data = []
 
@@ -69,13 +70,27 @@ def write_json_file(file_name):
         out_file.close()
 
 def main():
-    for arg in sys.argv[1:]:
-        #print(arg)
-        read_json_file(arg)
-        #print(filtered_json_data)
-    output_name = raw_input("Please input output json file name:")
+    # read in a folder's path
+    folder_path = sys.argv[1]
+    l_json_files = []
+    for root, dirs, files in os.walk(folder_path):
+        if root != folder_path:
+            l_json_files += list(map(lambda file: root+'/'+file, files))
+    #print "Add in json files:"
+    #print l_json_files
+    for json_file in l_json_files:
+        read_json_file(json_file)
+    tmp_name = folder_path + '_step_1.json.tmp'
+    output_name = folder_path + '_step_1.json'
+    
+    #for arg in sys.argv[1:]:
+    #    #print(arg)
+    #    read_json_file(arg)
+    #    #print(filtered_json_data)
+    #output_name = raw_input("Please input output json file name:")
     #print output_name
-    write_json_file(output_name)
+    write_json_file(tmp_name)
+    os.rename(tmp_name, output_name)
     print output_name + " is done!"
 main()
 

@@ -13,6 +13,8 @@ from multiprocessing import Array
 import ctypes
 from ctypes import *
 import sqlite3
+import time
+import random
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
@@ -93,6 +95,7 @@ def identifyNodes(t, idx):
 def send_wordsim_request(mode, input_1, input_2):
     global SEND_PORT
     global RECV_PORT
+    attemp = 0
     ret = float(0)
     if mode == 'oo':
         synset_1_str = '+'.join(input_1)
@@ -102,16 +105,19 @@ def send_wordsim_request(mode, input_1, input_2):
         c_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         c_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], RECV_PORT))
         c_sock.sendto(send_str, (socket.gethostbyaddr("127.0.0.1")[0], SEND_PORT))
-        try:
-            ret_str, serv_addr = c_sock.recvfrom(4096)
-            ret = float(ret_str)
-            #print float(ret_str)
-            return ret
-        except socket.error, msg:
-            print "Something wrong happened!"
-            print msg
-        finally:
-            c_sock.close()
+        while attemp > 10:
+            try:
+                ret_str, serv_addr = c_sock.recvfrom(4096)
+                ret = float(ret_str)
+                #print float(ret_str)
+                c_sock.close()
+                return ret
+            except socket.error, msg:
+                print "Cannot get word similarity!"
+                print msg
+                sleep(random.randint(1, 6))
+                attemp += 1
+        c_sock.close()
     return ret
 
 # this function finds all edges between two parsing trees w.r.t. two sentenses.
@@ -299,7 +305,7 @@ def isValidTree(tree_str):
             
 def fetchTreeStrFromDB(db_conn, user_id, time_s, time_e):                
     query_in = [user_id, time_s, time_e]
-    db_cur = db_conn.execute('''SELECT parse_trees FROM tb_user_text_full WHERE (user_id = ?) AND (strftime('%Y-%m-%dT%H:%M:%Sz', time) BETWEEN ? AND ?)''', query_in)
+    db_cur = db_conn.execute('''SELECT distinct parse_trees FROM tb_user_text_full WHERE (user_id = ?) AND (strftime('%Y-%m-%dT%H:%M:%Sz', time) BETWEEN ? AND ?)''', query_in)
     l_tree_str = []
     for row in db_cur:
         #print row[0]
@@ -324,11 +330,27 @@ def main():
     #arr = multiprocessing.Array(ctypes.c_double, 10)
     #sim = sent_pair_sim(test_sent_tree_str_1, test_sent_tree_str_2, arr, 0) 
 
-    db_conn = sqlite3.connect('/home/fcmeng/gh_data/Events/201708/user_text_clean_2017_08_01_0.db') 
-    l_sent_treestr_1 = fetchTreeStrFromDB(db_conn,"pos5jkJAZofH00dC9RaEMw", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z")
-    l_sent_treestr_2 = fetchTreeStrFromDB(db_conn,"-AD6F5U5BYGglII8N0S1Ig", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z")
-    print len(l_sent_treestr_1)*len(l_sent_treestr_2)
-    sim = doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, len(l_sent_treestr_1)*len(l_sent_treestr_2))
+    #db_conn = sqlite3.connect('/home/fcmeng/gh_data/Events/201708/user_text_clean_2017_08.db') 
+    #l_sent_treestr_1 = fetchTreeStrFromDB(db_conn,"d--BOWLtOdsBjJ3gd6f6CQ", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
+    #l_sent_treestr_2 = fetchTreeStrFromDB(db_conn,"I6Q3h_7eGc8bBB6dC4oTxg", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
+    #print len(l_sent_treestr_1)*len(l_sent_treestr_2)
+    #sim = doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, len(l_sent_treestr_1)*len(l_sent_treestr_2))
+
+    tmp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    tmp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    tmp_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], RECV_PORT))
+    serv_addr = ('127.0.0.1', 8306)
+    try:
+        tmp_sock.sendto('beautiful#kick', serv_addr)
+        sim, serv = tmp_sock.recvfrom(4096)
+        sim = float(sim)
+    except socket.error, msg:
+        print "Cannot get word similarity!"
+        print msg
+    finally:
+        tmp_sock.close()
+    
+        
     
     #print "----------------------------------------"
     #print l_sent_treestr_1

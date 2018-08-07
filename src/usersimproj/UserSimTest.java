@@ -189,9 +189,15 @@ public class UserSimTest
             /**
              * User Text
              */
-            UserTextIn uti = new UserTextIn("jdbc:sqlite:/home/fcmeng/gh_data/Events/201708/user_text_clean_2017_08_01_0.db");
-            uti.processUserTextFromDB("pos5jkJAZofH00dC9RaEMw", "2017-08-01T00:00:00Z", "2017-08-02T00:00:00Z");
-            uti.awaitShutdown();
+            UserTextIn uti = new UserTextIn("jdbc:sqlite:/home/fcmeng/gh_data/clean_text.db");
+            String user_id = args[0];
+            String t_start = args[1];
+            String t_end = args[2];
+            System.out.println("[DBG]: user_id  = " + user_id);
+            System.out.println("[DBG]: t_start  = " + t_start);
+            System.out.println("[DBG]: t_end  = " + t_end);
+            uti.processUserTextFromDB(user_id, t_start, t_end);
+            uti.allDone();
         }
         catch(Exception e)
         {

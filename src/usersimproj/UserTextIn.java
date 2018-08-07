@@ -5,6 +5,7 @@ import java.util.*;
 import java.sql.*;
 import java.util.concurrent.*;
 import java.util.stream.*;
+import java.lang.Thread;
 
 //import org.json.simple.*;
 //import org.json.simple.parser.*;
@@ -15,15 +16,17 @@ class UserTextIn
     /**
      * Class Constants
      */
-    public final int MAX_CACHED = 5000;
+    public final int MAX_CACHED = 1000;
+    public final int MAX_THREADS = 100;
+    public final int MAX_TASKS = 200;
 
     /**
      * Class Members
      */
     private Connection m_db_conn = null;;
     private List<UserTextRec> m_l_utrec = null;
-    private ExecutorService m_pool;
-
+    private ThreadPoolExecutor m_pool;
+    private long m_task_count = 0;
 
     /**
      * Class Methods
@@ -41,7 +44,15 @@ class UserTextIn
             System.out.println("[ERR]: " + e.toString());
         }
         m_l_utrec = Collections.synchronizedList(new ArrayList<UserTextRec>());
-        m_pool = Executors.newCachedThreadPool();
+        start();
+        //m_pool = Executors.newCachedThreadPool();
+    }
+
+    private void start()
+    {
+        m_task_count = 0;
+        m_pool = null;
+        m_pool = (ThreadPoolExecutor)Executors.newFixedThreadPool(MAX_THREADS);
     }
 
     public void addUpdatedUserTextRec(UserTextRec utrec)
@@ -74,7 +85,6 @@ class UserTextIn
             }
             //System.out.println("[DBG]: final commit...");
             commitUserTextRecs(0);
-            shutdownDB();
         }
         catch(Exception e)
         {
@@ -86,7 +96,7 @@ class UserTextIn
         }
     }
 
-    private void shutdownDB()
+    public void shutdownDB()
     {
         if (m_db_conn != null)
         {
@@ -99,6 +109,12 @@ class UserTextIn
                 System.out.println("[ERR]: " + e.toString());
             }
         }
+    }
+
+    public void allDone()
+    {
+        awaitShutdown();
+        shutdownDB();
     }
 
     // this function fetches user text for a given user within a certian time range,
@@ -123,12 +139,17 @@ class UserTextIn
         {
             while(rs.next())
             {
+                //System.out.println("[DBG]: UserTextIn 1");
                 m_pool.execute(new UserTextTask(this, m_db_conn,
                                 new UserTextRec(rs.getString("user_id"), rs.getString("time"), rs.getString("clean_text"), null, null)));
-                //commitUserTextRecs(MAX_CACHED);
+                m_task_count += 1;
+                if(m_task_count > MAX_TASKS)
+                {
+                    awaitShutdown();
+                    start();
+                }
+                
             }
-            //System.out.println("[DBG]: for the rest commit...");
-            //commitUserTextRecs(0);
         }
         catch(Exception e)
         {
@@ -140,10 +161,10 @@ class UserTextIn
     {
         synchronized(m_l_utrec)
         {
-            //System.out.println("[DBG]: m_l_utrec.size() = " + m_l_utrec.size());
+            System.out.println("[DBG]: m_l_utrec.size() = " + m_l_utrec.size());
             if(m_l_utrec.size() > max_cached)
             {
-                //System.out.println("[DBG]: Enter commit...");
+                System.out.println("[DBG]: Enter commit...");
                 ArrayList<Integer> l_rm = new ArrayList<Integer>();
                 String update_str = "UPDATE tb_user_text_full SET tagged_text = ?, parse_trees = ? WHERE user_id = ? AND time = ?";
                 try
@@ -163,9 +184,9 @@ class UserTextIn
                       st.executeUpdate();
 
                       l_rm.add(m_l_utrec.indexOf(utc));
-                    //System.out.println("[DBG]: commit rec: " + utc.gettaggedtext() + ":" + utc.getparsetrees() + ":" + utc.getuserid());
+                      System.out.println("[DBG]: commit rec: " + utc.gettaggedtext() + ":" + utc.getparsetrees() + ":" + utc.getuserid());
                   }
-                  //System.out.println("[DBG]: commit to DB...");
+                  System.out.println("[DBG]: commit to DB...");
                   m_db_conn.commit();
                 }
                 catch(Exception e)
