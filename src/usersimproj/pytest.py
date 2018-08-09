@@ -27,11 +27,16 @@ test_sent_tree_str_2 = '(ROOT (S (S L:probably#00138611r+00138611r L:capability#
 sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.'
 
 NODE_ID_COUNTER = 0
-WORD_SIM_THRESHOLD = 0.4
-SEND_PORT = 8607
+WORD_SIM_THRESHOLD_ADW = 0.4
+WORD_SIM_THRESHOLD_NASARI = 0.4
+SEND_PORT_ADW = 8607
+SEND_PORT_NASARI = 8306
+SEND_ADDR_ADW = 'discovery1'
+SEND_ADDR_NASARI = 'discovery1'
 RECV_PORT = 2001
+# the other option is 'adw'
+WORD_SIM_MODE = 'nasari'
 
-#con_parser = corenlp.CoreNLPParser(url='http://localhost:9000')
 
 # this function takes a tree string and returns the graph of this tree
 # the format of the input tree string needs follow the CoreNLP Tree def.
@@ -93,7 +98,10 @@ def identifyNodes(t, idx):
         NODE_ID_COUNTER += 1
 
 def send_wordsim_request(mode, input_1, input_2):
-    global SEND_PORT
+    global SEND_PORT_ADW
+    global SEND_PORT_NASARI
+    global SEND_ADDR_ADW
+    global SEND_ADDR_NASARI
     global RECV_PORT
     attemp = 0
     ret = float(0)
@@ -101,23 +109,31 @@ def send_wordsim_request(mode, input_1, input_2):
         synset_1_str = '+'.join(input_1)
         synset_2_str = '+'.join(input_2)
         send_str = mode + '#' + synset_1_str + '#' + synset_2_str
-        c_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        c_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        c_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], RECV_PORT))
-        c_sock.sendto(send_str, (socket.gethostbyaddr("127.0.0.1")[0], SEND_PORT))
-        while attemp > 10:
-            try:
-                ret_str, serv_addr = c_sock.recvfrom(4096)
-                ret = float(ret_str)
-                #print float(ret_str)
-                c_sock.close()
-                return ret
-            except socket.error, msg:
-                print "Cannot get word similarity!"
-                print msg
-                sleep(random.randint(1, 6))
-                attemp += 1
-        c_sock.close()
+        send_port = SEND_PORT_ADW
+        send_addr = SEND_ADDR_ADW
+    elif mode == 'ww':
+        #input_1 and input_2 are the two words here
+        send_str = input_1 + '#' + input_2 
+        send_port = SEND_PORT_NASARI
+        send_addr = SEND_ADDR_NASARI
+
+    c_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    c_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    c_sock.bind((socket.gethostname(), RECV_PORT))
+    c_sock.sendto(send_str, (send_addr, send_port))
+    while attemp < 10:
+        try:
+            ret_str, serv_addr = c_sock.recvfrom(4096)
+            ret = float(ret_str)
+            print "[DBG]: send_word_sim_request:" + str(ret)
+            c_sock.close()
+            return ret
+        except socket.error, msg:
+            print "Cannot get word similarity!"
+            print msg
+            sleep(random.randint(1, 6))
+            attemp += 1
+    c_sock.close()
     return ret
 
 # this function finds all edges between two parsing trees w.r.t. two sentenses.
@@ -137,23 +153,30 @@ def find_inter_edges(tree_1, tree_2):
     #print leaves_1
     #print leaves_2
     for leaf_1 in leaves_1:
+        #print "[DBG]: leaf_1 str = " + leaf_1[0]
         synset_1 = leaf_1[1]['tags']
+        word_1 = leaf_1[0].split(':')[2].split('#')[0].strip()
         for leaf_2 in leaves_2:
             sim = float(0)
             synset_2 = leaf_2[1]['tags']
-            if len(synset_1) > 0 and len(synset_2) > 0:
-                sim = send_wordsim_request('oo', synset_1, synset_2)
-                #print "get the sim = " + str(sim)
-            if sim == float(0):
-                if leaf_1[0].split(':')[2].split('#')[0].strip() \
-                    == leaf_2[0].split(':')[2].split('#')[0].strip():
+            word_2 = leaf_2[0].split(':')[2].split('#')[0].strip()
+            if WORD_SIM_MODE == 'adw':
+                if len(synset_1) > 0 and len(synset_2) > 0:
+                    sim = send_wordsim_request('oo', synset_1, synset_2)
+                if sim == float(0):
+                    if word_1 == word_2:
+                        sim = 1
+                if sim > WORD_SIM_THRESHOLD_ADW:
+                    edges.append((leaf_1[0], leaf_2[0], {'weight': sim, 'type': 'inter'}))
+            elif WORD_SIM_MODE == 'nasari':
+                if word_1 == word_2:
                     sim = 1
-            if sim > WORD_SIM_THRESHOLD:
-                edges.append((leaf_1[0], leaf_2[0], {'weight': sim, 'type': 'inter'}))
-                #print "add an edge!"
-            #print "sim:" + leaf_1[0] + ":" + leaf_2[0] + ":" + str(sim)
-    #print "edges = "
-    #print edges
+                else:
+                    sim = send_wordsim_request('ww', word_1, word_2)
+                print "[DBG]: nasari sim = " + str(sim)
+                if sim > WORD_SIM_THRESHOLD_NASARI:
+                    edges.append((leaf_1[0], leaf_2[0], {'weight': sim, 'type': 'inter'}))
+                
     return edges
 
 def treestr_pair_to_graph(treestr_1, treestr_2, id_1, id_2):
@@ -325,8 +348,8 @@ def main():
     #print sent_tree
     #find_inter_edges(sent_tree, sent_tree)
 
-    #tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(test_sent_tree_str_1, test_sent_tree_str_2, 's1', 's2')
-    #sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
+    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(test_sent_tree_str_1, test_sent_tree_str_1, 's1', 's2')
+    sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
     #arr = multiprocessing.Array(ctypes.c_double, 10)
     #sim = sent_pair_sim(test_sent_tree_str_1, test_sent_tree_str_2, arr, 0) 
 
@@ -336,19 +359,19 @@ def main():
     #print len(l_sent_treestr_1)*len(l_sent_treestr_2)
     #sim = doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, len(l_sent_treestr_1)*len(l_sent_treestr_2))
 
-    tmp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    tmp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    tmp_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], RECV_PORT))
-    serv_addr = ('127.0.0.1', 8306)
-    try:
-        tmp_sock.sendto('beautiful#kick', serv_addr)
-        sim, serv = tmp_sock.recvfrom(4096)
-        sim = float(sim)
-    except socket.error, msg:
-        print "Cannot get word similarity!"
-        print msg
-    finally:
-        tmp_sock.close()
+    #tmp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #tmp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #tmp_sock.bind((socket.gethostbyaddr("127.0.0.1")[0], RECV_PORT))
+    #serv_addr = ('127.0.0.1', 8306)
+    #try:
+    #    tmp_sock.sendto('beautiful#kick', serv_addr)
+    #    sim, serv = tmp_sock.recvfrom(4096)
+    #    sim = float(sim)
+    #except socket.error, msg:
+    #    print "Cannot get word similarity!"
+    #    print msg
+    #finally:
+    #    tmp_sock.close()
     
         
     

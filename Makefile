@@ -23,6 +23,7 @@ CLASSES = \
 		$(SRCPATH)/UserTextRec.java \
 		$(SRCPATH)/UserTextTask.java \
 		$(SRCPATH)/UserSimConstants.java \
+		$(SRCPATH)/AnnotateUserText.java \
 		$(SRCPATH)/TestClient.java \
 		$(SRCPATH)/UserSimTest.java
 

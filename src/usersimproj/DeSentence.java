@@ -50,7 +50,7 @@ public class DeSentence
     private Tree m_tagged_pruned_tree;
     private Tree m_pruned_tree;
     // path for the stopword file
-    private final String m_swfilepath = "/home/fcmeng/user_similarity_project/res/stopwords.txt";
+    private String m_swfilepath = UserSimConstants.STOPWORDS_PATH;
     // stopword array
     private String[] m_l_stopwords;
 

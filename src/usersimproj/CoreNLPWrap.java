@@ -25,7 +25,7 @@ public class CoreNLPWrap
     // properties for CoreNLP pipeline
     private Properties m_props;
     // path for the stopword file
-    private final String m_swfilepath = "/home/fcmeng/user_similarity_project/res/stopwords.txt";
+    private String m_swfilepath = UserSimConstants.STOPWORDS_PATH;
     // stopword array
     //private String[] m_a_stopwords;
     // CoreNLP pipeline instance
@@ -77,21 +77,20 @@ public class CoreNLPWrap
                 e.printStackTrace();
             }
             */
+            m_online = false;
             m_pipeline = new StanfordCoreNLP(m_props);
             coredoc = new CoreDocument(in_txt);
             m_pipeline.annotate(coredoc);
         }
         else
         {
+            m_online = true;
             m_client = new StanfordCoreNLPClient(m_props, 
                 UserSimConstants.CORENLP_SERV_HOSTNAME, 
                 UserSimConstants.CORENLP_SERV_PORT,
                 UserSimConstants.CORENLP_CLIENT_THREAD);
-            //System.out.println("[DBG]: CoreNLPWrap in_txt = " + in_txt);
             Annotation annodoc = new Annotation(in_txt);
-            //System.out.println("[DBG]: CoreNLPWrap annotation1");
             m_client.annotate(annodoc);
-            //System.out.println("[DBG]: CoreNLPWrap annotation2");
             coredoc = new CoreDocument(annodoc);
         }
         m_sentences = coredoc.sentences();
@@ -101,6 +100,12 @@ public class CoreNLPWrap
             m_desentences.add(new DeSentence(sent.text()));
         }
     };
+
+    public void annotateText(String in_text)
+    {
+        
+    }
+
 
     // reads stopwords from a file, and outputs a sorted string array 
     /*
@@ -243,6 +248,7 @@ public class CoreNLPWrap
         {
             try
             {
+                System.out.println("[DBG]: Shutdown CoreNLP client!");
                 m_client.shutdown();
             }
             catch(Exception e)

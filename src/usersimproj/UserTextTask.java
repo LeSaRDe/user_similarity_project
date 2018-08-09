@@ -5,27 +5,31 @@ import java.util.*;
 import java.sql.*;
 import java.util.stream.*;
 
-class UserTextTask implements Runnable
+class UserTextTask extends Thread
 {
     private Connection m_ref_db_conn = null;
     private UserTextRec m_in_utrec = null;
     private UserTextIn m_utin = null;
+    private CoreNLPWrap m_corenlp = null;
 
     public UserTextTask(UserTextIn utin, Connection ref_db_conn, UserTextRec in_utrec)
     {
         m_utin = utin;
         m_ref_db_conn = ref_db_conn;
         m_in_utrec = in_utrec;
+        m_corenlp = new CoreNLPWrap(m_in_utrec.getcleantext(), true);
+    }
+
+    public void setUserTextRec(UserTextRec in_utrec)
+    {
+        m_in_utrec = in_utrec;
     }
 
     public void run()
     {
-        //System.out.println("[DBG]: UserTextTask run...");
-        CoreNLPWrap corenlp = new CoreNLPWrap(m_in_utrec.getcleantext(), true);
-        //System.out.println("[DBG]: get CoreNLP...");
-        corenlp.getDecomposedSentences();
-        corenlp.getConstituentTrees();
-        List<DeSentence> l_sentences = corenlp.getDeSentences();
+        m_corenlp.getDecomposedSentences();
+        m_corenlp.getConstituentTrees();
+        List<DeSentence> l_sentences = m_corenlp.getDeSentences();
         if(UserSimConstants.EN_BABELFY)
         {
             BabelWrap bw = new BabelWrap();
@@ -36,12 +40,12 @@ class UserTextTask implements Runnable
         }
         String sent_str = String.join("|", l_sentences.stream().map(desent->desent.toTaggedSentenceString()).collect(Collectors.toList()));
         String tree_str = String.join("|", l_sentences.stream().map(desent->desent.getPrunedTree(true).toString()).collect(Collectors.toList()));
-        System.out.println("[DBG]: parse_trees = " + tree_str);
+        //System.out.println("[DBG]: parse_trees = " + tree_str);
         m_in_utrec.settaggedtext(sent_str);
         m_in_utrec.setparsetrees(tree_str);
         m_utin.addUpdatedUserTextRec(m_in_utrec);
-        corenlp.shutdownCoreNLPClient();
-        corenlp = null;
+        m_corenlp.shutdownCoreNLPClient();
+        m_corenlp = null;
         //System.out.println("[DBG]: UserTextTask one record ready!");
     }
 }

@@ -189,7 +189,7 @@ public class UserSimTest
             /**
              * User Text
              */
-            UserTextIn uti = new UserTextIn("jdbc:sqlite:/home/fcmeng/gh_data/clean_text.db");
+            UserTextIn uti = new UserTextIn(UserSimConstants.DB_PATH);
             String user_id = args[0];
             String t_start = args[1];
             String t_end = args[2];
