@@ -15,16 +15,19 @@ from ctypes import *
 import sqlite3
 import time
 import random
+import sys
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
-con_sent_tree_str ='(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP (NP L:WordNet-based L:approach#04746134n) (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#06251033n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886869a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06414372n))))))'
+#con_sent_tree_str ='(ROOT (S (NP (NP L:Align#00464321v L:Disambiguate#00957178v) L:Walk#01904930v) (NP (NP L:WordNet-based L:approach#04746134n) (S (VP L:measuring#00647094v (NP (NP L:semantic#02842042a L:similarity#06251033n) (NP (NP L:arbitrary#00718924a L:pairs#13743605n) (NP L:lexical#02886869a L:items#03588414n) (NP L:word#06286395n L:senses#03990834n))) (NP L:full#01083157a L:texts#06414372n))))))'
 
-test_sent_tree_str_1 = '(ROOT (S (SBAR (S (VP L:mentioned#01024190v (NP L:UI L:comments#06762711n)))) (VP L:think#00689344v (SBAR (S (VP L:like#00691665v (S (VP L:avoid#00811375v (S (VP L:Getting (NP (NP L:Started#00345761v L:tab#04379096n) (NP L:package#03871083n (S (VP L:avoid#00811375v (NP L:customer#09984659n L:confusion#00379754n)))))))))))))))'
+#test_sent_tree_str_1 = '(ROOT (S (SBAR (S (VP L:mentioned#01024190v (NP L:UI L:comments#06762711n)))) (VP L:think#00689344v (SBAR (S (VP L:like#00691665v (S (VP L:avoid#00811375v (S (VP L:Getting (NP (NP L:Started#00345761v L:tab#04379096n) (NP L:package#03871083n (S (VP L:avoid#00811375v (NP L:customer#09984659n L:confusion#00379754n)))))))))))))))'
 
-test_sent_tree_str_2 = '(ROOT (S (S L:probably#00138611r+00138611r L:capability#05202497n (SBAR (S L:driver#06574473n (VP L:set#01062395v L:capability#05202497n (SBAR (S (VP L:notice#01058574v (SBAR (S L:Chrome#14810704n))))))))) (S L:run#02730326v)))'
+#test_sent_tree_str_2 = '(ROOT (S (S L:probably#00138611r+00138611r L:capability#05202497n (SBAR (S L:driver#06574473n (VP L:set#01062395v L:capability#05202497n (SBAR (S (VP L:notice#01058574v (SBAR (S L:Chrome#14810704n))))))))) (S L:run#02730326v)))'
 
-sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.'
+#sent = 'Align, Disambiguate, and Walk (ADW) is a WordNet-based approach for measuring semantic similarity of arbitrary pairs of lexical items, from word senses to full texts.'
+
+err_sent_tree_str = '(ROOT (S L:Actually (VP L:changed (SBAR (S (NP (NP L:default L:line L:endings) (VP L:setting (NP L:version L:git) (SBAR (S (S (VP L:bundle (NP L:Windows L:binaries))) (S L:appveyor (VP L:checking L:test)))))) (VP L:files (NP L:unix L:line L:endings)))))))|(ROOT (S (VP (VP L:failure (SBAR (S (VP L:run (NP L:test L:data L:files))))) (ADJP L:due (S (S L:equaling))))))'
 
 NODE_ID_COUNTER = 0
 WORD_SIM_THRESHOLD_ADW = 0.4
@@ -336,10 +339,34 @@ def fetchTreeStrFromDB(db_conn, user_id, time_s, time_e):
         l_tree_str = l_tree_str + l_tree_str_one_row
     return l_tree_str
 
+# this function compute the text similarity between two users given a text data within a specified period for each user.
+# e.g. EA9kAjiQqhgGVWFW-3cMoA, 5VB78863WVpziQEkorI0-Q, 2017-07-01T00:00:00Z, 2017-08-01T00:00:00Z, 2017-05-01T00:00:00Z, 2017-06-01T00:00:00Z
+def user_time_text_sim(user_1, user_2, mon_1_s, mon_1_e, mon_2_s, mon_2_e):
+    l_sent_treestr_1 = fetchTreeStrFromDB(db_conn,"d--BOWLtOdsBjJ3gd6f6CQ", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
+    l_sent_treestr_2 = fetchTreeStrFromDB(db_conn,"I6Q3h_7eGc8bBB6dC4oTxg", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
+    #print len(l_sent_treestr_1)*len(l_sent_treestr_2)
+    sim = doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, len(l_sent_treestr_1)*len(l_sent_treestr_2))
+    return sim
     
 
 
+# e.g. EA9kAjiQqhgGVWFW-3cMoA, 5VB78863WVpziQEkorI0-Q, 2017-07-01T00:00:00Z, 2017-08-01T00:00:00Z, 2017-05-01T00:00:00Z, 2017-06-01T00:00:00Z, outputfile
 def main():
+    #user_1 = str(sys.argv[1]).strip()
+    #user_2 = str(sys.argv[2]).strip()
+    #t_1_s = str(sys.argv[3]).strip()
+    #t_1_e = str(sys.argv[4]).strip()
+    #t_2_s = str(sys.argv[5]).strip()
+    #t_2_e = str(sys.argv[6]).strip()
+    #output_file = str(sys.argv[7]).strip()
+    #sim = user_time_text_sim(user_1, user_2, t_1_s, t_1_e, t_2_s, t_2_e)
+    #sim = 12.234
+    #ret = '|'.join([user_1, user_2, t_1_s, t_1_e, t_2_s, t_2_e, str(sim)])
+    #with open(output_file, 'w+') as f_out:
+    #    f_out.write(ret)
+    #    f_out.close()
+
+
     #con_sent_tree = Tree.fromstring(con_sent_tree_str)
     #t_production = con_sent_tree.productions()
     #print con_sent_tree
@@ -348,8 +375,8 @@ def main():
     #print sent_tree
     #find_inter_edges(sent_tree, sent_tree)
 
-    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(test_sent_tree_str_1, test_sent_tree_str_1, 's1', 's2')
-    sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
+    #tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(test_sent_tree_str_1, test_sent_tree_str_1, 's1', 's2')
+    #sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
     #arr = multiprocessing.Array(ctypes.c_double, 10)
     #sim = sent_pair_sim(test_sent_tree_str_1, test_sent_tree_str_2, arr, 0) 
 
@@ -379,9 +406,9 @@ def main():
     #print l_sent_treestr_1
     #print "----------------------------------------"
     #print l_sent_treestr_2
-    print "----------------------------------------"
-    print sim
-    print "----------------------------------------"
+    #print "----------------------------------------"
+    #print sim
+    #print "----------------------------------------"
 
 
     #plt.subplot(111)

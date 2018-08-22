@@ -125,7 +125,7 @@ evidence of how GitHub users interact with others.
   compatible with the word2vect model, and we can use gensim to load the
   pre-trained model in. One thing needs to be clarified is that this model is
   not literally a word2vect model. It "combines" a word2vect model trained on
-  the UMBC corpus with their lexical model. The best part of NASARI is this
+  the UMBC corpus and their lexical model. The best part of NASARI is this
   embedded model. By using this model, we do not have to retrieve the synset
   of each word before computing the word similarity. The performance is
   reported to be similar as ADW. This is what we are using in our currently

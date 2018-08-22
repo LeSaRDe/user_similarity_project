@@ -10,5 +10,6 @@ while IFS='' read -r line || [[ -n "$line" ]]; do
     t_2_e="$(cut -d'|' -f6 <<< $line)"
     output_file="/hpchome/fcmeng/user_similarity_project/user_sim_ret"
     sbatch -W user_sim_run.sh $user_1 $user_2 $t_1_s $t_1_e $t_2_s $t_2_e $output_file
+    #{ ./user_sim_run.sh $user_1 $user_2 $t_1_s $t_1_e $t_2_s $t_2_e $output_file; } &
+    #wait;
 done < "$1"
-

@@ -11,10 +11,12 @@ def main():
         l_user = [x.strip() for x in l_user]
     #print l_user
 
+    # (user_1, user_2)
     user_comb_gen = itertools.combinations(l_user, 2)
     l_user_comb = list(user_comb_gen)
     print len(l_user_comb)
      
+    # (mon_1, mon_2)
     l_mon = []
     with open(MONTH_LIST_FILE, 'r') as mlf:
         l_mon = mlf.readlines()
@@ -24,8 +26,9 @@ def main():
 
     l_config = []
     for uu in l_user_comb:
-        for mm in l_mon_comb:
-            l_config.append((uu[0], uu[1], mm[0], mm[1]))
+        for mm_1 in l_mon_comb:
+            for mm_2 in l_mon_comb:
+                l_config.append((uu[0], uu[1], mm_1[0], mm_1[1], mm_2[0], mm_2[1]))
     print len(l_config)
 
 

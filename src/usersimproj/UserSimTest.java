@@ -196,7 +196,7 @@ public class UserSimTest
             System.out.println("[DBG]: user_id  = " + user_id);
             System.out.println("[DBG]: t_start  = " + t_start);
             System.out.println("[DBG]: t_end  = " + t_end);
-            uti.processUserTextFromDB(user_id, t_start, t_end);
+            uti.processUserTextFromDB(user_id, null, null);
             uti.allDone();
         }
         catch(Exception e)

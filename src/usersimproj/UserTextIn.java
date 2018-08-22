@@ -140,6 +140,9 @@ class UserTextIn
         if(time_s == null || time_e == null)
         {
             query_str = String.format("SELECT user_id, time, clean_text FROM tb_user_text_full WHERE (user_id = '%s')", user_id);
+            // TODO
+            // only for test
+            //query_str = "select user_id, time, clean_text from tb_user_text_full where (user_id='5VB78863WVpziQEkorI0-Q') and (clean_text like 'Actually%Windows binaries%')";
         }
         else
         {

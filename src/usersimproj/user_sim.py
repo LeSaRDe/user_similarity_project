@@ -16,6 +16,8 @@ import sqlite3
 import time
 import random
 import sys
+import os
+import psutil
 
 #(ROOT (S (NP (NP (NNP Align#[00464321v]) (, ,) (NNP Disambiguate#[00957178v]) (, ,) ) (CC and) (NP (NP (VB Walk#[01904930v])) (PRN (-LRB- -LRB-) (NP (NN ADW)) (-RRB- -RRB-)))) (VP (VBZ is) (NP (NP (DT a) (JJ WordNet-based) (NN approach#[00941140n])) (PP (IN for) (S (VP (VBG measuring#[00647094v]) (NP (NP (JJ semantic#[02842042a]) (NN similarity#[04743605n])) (PP (IN of) (NP (NP (JJ arbitrary#[00718924a]) (NNS pairs#[13743605n])) (PP (IN of) (NP (JJ lexical#[02886629a]) (NNS items#[03588414n]))) (, ,) (PP (IN from) (NP (NN word#[06286395n]) (NNS senses#[03990834n])))))) (PP (TO to) (NP (JJ full#[01083157a]) (NNS texts#[06387980n, 06388579n])))))))) (. .)))
 
@@ -32,12 +34,13 @@ WORD_SIM_THRESHOLD_ADW = 0.4
 WORD_SIM_THRESHOLD_NASARI = 0.4
 SEND_PORT_ADW = 8607
 SEND_PORT_NASARI = 8306
-SEND_ADDR_ADW = 'discovery1'
-SEND_ADDR_NASARI = 'discovery1'
+SEND_ADDR_ADW = 'hswlogin1'
+SEND_ADDR_NASARI = 'hswlogin1'
 RECV_PORT = 2001
 # the other option is 'adw'
 WORD_SIM_MODE = 'nasari'
-
+DB_CONN_STR = '/home/fcmeng/clean_text.db'
+MAX_PROC = 32
 
 # this function takes a tree string and returns the graph of this tree
 # the format of the input tree string needs follow the CoreNLP Tree def.
@@ -62,7 +65,7 @@ def treestr_to_graph(treestr, id):
             end = edge_e.replace("'", "")
             end = end.strip()
             if end[3:5] == "L:":
-                word_n_tags = end[5:].split('#')
+                word_n_tags = end[5:].split(":")[0].split('#')
                 if len(word_n_tags) >= 2:
                     offset_tags = word_n_tags[1].split('+')
                     ret_graph.add_node(end, type='leaf', tags = offset_tags)
@@ -94,11 +97,11 @@ def identifyNodes(t, idx):
             identifyNodes(subtree, idx)
         #elif isinstance(subtree, str):
         else:
-            newVal = idx + ':' + subtree
+            newVal = idx + ':' + subtree + ':' + str(NODE_ID_COUNTER)
             t[index] = newVal
         NODE_ID_COUNTER += 1
 
-def send_wordsim_request(mode, input_1, input_2):
+def send_wordsim_request(mode, input_1, input_2, recv_port):
     global SEND_PORT_ADW
     global SEND_PORT_NASARI
     global SEND_ADDR_ADW
@@ -120,17 +123,28 @@ def send_wordsim_request(mode, input_1, input_2):
 
     c_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     c_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    c_sock.bind((socket.gethostname(), RECV_PORT))
+    #while attemp < 10:
+    #    try:
+    #        c_sock.bind((socket.gethostname(), recv_port))
+    #    except socket.error, msg:
+    #        print "[ERR]: bind error. " + "port:" + str(recv_port) + " is in use."
+    #        print msg
+    #        recv_port += 33
+    #        recv_port = recv_port % 50000
+    #        if recv_port < 2001:
+    #            recv_port += 2001
+    #        attemp += 1
     c_sock.sendto(send_str, (send_addr, send_port))
+    #attemp = 0
     while attemp < 10:
         try:
             ret_str, serv_addr = c_sock.recvfrom(4096)
             ret = float(ret_str)
-            print "[DBG]: send_word_sim_request:" + str(ret)
+            #print "[DBG]: send_word_sim_request:" + str(ret)
             c_sock.close()
             return ret
         except socket.error, msg:
-            print "Cannot get word similarity!"
+            print "[ERR]: Cannot get word similarity!"
             print msg
             sleep(random.randint(1, 6))
             attemp += 1
@@ -141,7 +155,7 @@ def send_wordsim_request(mode, input_1, input_2):
 # an edge will be created only when its weight is greater than a threshold.
 # 'tree_1' and 'tree_2' are two parsing trees.
 # what is returned is a collection of edges.
-def find_inter_edges(tree_1, tree_2):
+def find_inter_edges(tree_1, tree_2, recv_port):
     edges = []
     leaves_1 = filter(lambda(f, d): d['type'] == 'leaf', tree_1.nodes(data=True))
     leaves_2 = filter(lambda(f, d): d['type'] == 'leaf', tree_2.nodes(data=True))
@@ -163,7 +177,7 @@ def find_inter_edges(tree_1, tree_2):
             word_2 = leaf_2[0].split(':')[2].split('#')[0].strip()
             if WORD_SIM_MODE == 'adw':
                 if len(synset_1) > 0 and len(synset_2) > 0:
-                    sim = send_wordsim_request('oo', synset_1, synset_2)
+                    sim = send_wordsim_request('oo', synset_1, synset_2, recv_port)
                 if sim == float(0):
                     if word_1 == word_2:
                         sim = 1
@@ -173,17 +187,17 @@ def find_inter_edges(tree_1, tree_2):
                 if word_1 == word_2:
                     sim = 1
                 else:
-                    sim = send_wordsim_request('ww', word_1, word_2)
-                print "[DBG]: nasari sim = " + str(sim)
+                    sim = send_wordsim_request('ww', word_1, word_2, recv_port)
+                #print "[DBG]: nasari sim = " + str(sim)
                 if sim > WORD_SIM_THRESHOLD_NASARI:
                     edges.append((leaf_1[0], leaf_2[0], {'weight': sim, 'type': 'inter'}))
                 
     return edges
 
-def treestr_pair_to_graph(treestr_1, treestr_2, id_1, id_2):
+def treestr_pair_to_graph(treestr_1, treestr_2, id_1, id_2, recv_port):
     graph_1 = treestr_to_graph(treestr_1, id_1)
     graph_2 = treestr_to_graph(treestr_2, id_2)
-    inter_edges = find_inter_edges(graph_1, graph_2)
+    inter_edges = find_inter_edges(graph_1, graph_2, recv_port)
     ret_graph = nx.compose(graph_1, graph_2)
     ret_graph.add_edges_from(inter_edges)
     return ret_graph, inter_edges, graph_1, graph_2
@@ -212,38 +226,90 @@ def validate_cycle(cycle):
     return ret, s1_nodes["leaves"], s2_nodes["leaves"]
 
 def find_shortest_path(g1, g2, sub_nodes1, sub_nodes2):
-    p1 = set()
-    for m in sub_nodes1:
-        for n in sub_nodes1:
-            if sub_nodes1.index(m) < sub_nodes1.index(n):
-                p1.update(nx.shortest_path(g1, source=m, target=n))
-    p1 = list(p1)
-    p2 = set()
-    for m in sub_nodes2:
-        for n in sub_nodes2:
-            if sub_nodes2.index(m) < sub_nodes2.index(n):
-                p2.update(nx.shortest_path(g2, source=m, target=n))
-    p2 = list(p2)
+    if len(sub_nodes1) <= 1:
+        p1 = sub_nodes1
+    else:
+        p1 = set()
+        for m in sub_nodes1:
+            for n in sub_nodes1:
+                if sub_nodes1.index(m) < sub_nodes1.index(n):
+                    p1.update(nx.shortest_path(g1, source=m, target=n))
+        p1 = list(p1)
+
+    if len(sub_nodes2) <= 1:
+        p2 = sub_nodes2
+    else:
+        p2 = set()
+        for m in sub_nodes2:
+            for n in sub_nodes2:
+                if sub_nodes2.index(m) < sub_nodes2.index(n):
+                    p2.update(nx.shortest_path(g2, source=m, target=n))
+        p2 = list(p2)
     return p1 + p2
 
 def find_min_cycle_basis(graph, tree_1, tree_2):
+    #print "[DBG]: ----------------------------------------"
     pre_cycle_basis = nx.minimum_cycle_basis(graph)
+    #print "[DBG]: pre_cycle_basis init = "
+    #print pre_cycle_basis
     min_cycle_basis = []
-    while len(pre_cycle_basis):
+    while len(pre_cycle_basis) > 0:
+        #print "===================="
+        #print "[DBG]: graph nodes = "
+        #print graph.nodes()
+        #print "[DBG]: graph edges = "
+        #print graph.edges()
+        #print "[DBG]: tree_1 nodes = "
+        #print tree_1.nodes()
+        #print "[DBG]: tree_1 edges = "
+        #print tree_1.edges()
+        #print "[DBG]: tree_2 nodes = "
+        #print tree_2.nodes()
+        #print "[DBG]: tree_2 edges = "
+        #print tree_2.edges()
         b = pre_cycle_basis.pop()
+        #print "[DBG]: pop basic cycle: "
+        #print b
         v, sub_s1, sub_s2 = validate_cycle(b)
+        #print "[DBG]: b is " + str(v)
         if not v:
             p12 = find_shortest_path(tree_1, tree_2, sub_s1, sub_s2)
+            #print "[DBG]: p12 = "
+            #print p12
             H = graph.subgraph(p12)
+            #print "[DBG]: H nodes = "
+            #print H.nodes()
+            #print "[DBG]: H edges = "
+            #print H.edges()
             sub_cycle_basis = nx.minimum_cycle_basis(H)
+            #print "[DBG]: sub_cycle_basis = "
+            #print sub_cycle_basis
             for cc in sub_cycle_basis:
+                #print "[DBG]: cc = "
+                #print cc
                 if cc not in pre_cycle_basis and cc not in min_cycle_basis and cc != b and set(cc) != set(b):
                     pre_cycle_basis.append(cc)
+                    #print "[DBG]: add cc to pre_cycle_basis: "
+                    #print pre_cycle_basis
                 else:
                     print "[ERR]: Already has this cycle:"
                     print cc
+                    print "[ERR]: Invalid cycle = "
+                    print b
+                    print "[ERR]: Leaves 1 = "
+                    print sub_s1
+                    print "[ERR]: Leaves 2 = "
+                    print sub_s2
+                    print "[ERR]: Current min_cycle_basis = "
+                    print min_cycle_basis
+                    print "[ERR]: Current pre_cycle_basis = "
+                    print pre_cycle_basis
         else:
             min_cycle_basis.append(b)
+            #print "[DBG]: add b to min_cycle_basis: "
+            #print min_cycle_basis
+        #print "===================="
+    #print "[DBG]: ----------------------------------------"
     return min_cycle_basis
 
 def cal_cycle_weight(cycle, inter_edges):
@@ -278,16 +344,33 @@ def sim_from_tree_pair_graph(inter_edges, graph, tree_1, tree_2):
         cycle_weights.append(cw)
     return sum(cycle_weights)
 
-def sent_pair_sim(sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i):
-    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(sent_treestr_1, sent_treestr_2, 's1', 's2')
+def sent_pair_sim(sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i, recv_port):
+    tp_graph, inter_edges, tree_1, tree_2 = treestr_pair_to_graph(sent_treestr_1, sent_treestr_2, 's1', 's2', recv_port)
     sim = sim_from_tree_pair_graph(inter_edges, tp_graph, tree_1, tree_2)
     sim_arr[sim_arr_i] = sim
+    pid = os.getpid()
+    proc = psutil.Process(pid)
+    #print "[DBG]: sent_pair_sim before term"
+    proc.terminate()
+    #print "[DBG]: sent_pair_sim after term"
     if sim != 0:
         print "----------------------------------------"
-        print "sent 1 = " + sent_treestr_1
-        print "sent 2 = " + sent_treestr_2
-        print "sim = " + str(sim)
+        print "[DBG]: sent 1 = " + sent_treestr_1
+        print "[DBG]: sent 2 = " + sent_treestr_2
+        print "[DBG]: sim = " + str(sim)
     return sim
+
+def sim_procs_cool_down(l_sim_proc):
+    #print "[DBG]: start a cool-down."
+    while(len(l_sim_proc) != 0):
+        #print "[DBG]: sim_procs_cool_down:" + str(len(l_sim_proc))
+        for proc in l_sim_proc:
+            if proc.pid != os.getpid():
+                proc.join(1)
+            if not proc.is_alive():
+                #print "[DBG]: " + str(proc.pid) + " is removed."
+                l_sim_proc.remove(proc)
+    #print "[DBG]: done a cool-down."
 
 def doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, num_sent_pairs):
     global RECV_PORT
@@ -295,28 +378,54 @@ def doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, num_sent_pairs):
     sim_arr_i = 0
     sim_procs = []
     proc_id = 0
+    proc_batch = 0
     if l_sent_treestr_1 == None or l_sent_treestr_2 == None \
         or len(l_sent_treestr_1) == 0 or len(l_sent_treestr_2) == 0:
         print "[ERR]: Invalid input doc!"
         return 0
+    #print "[DBG]: parent pid = " + str(os.getpid())
     for sent_treestr_1 in l_sent_treestr_1:
         for sent_treestr_2 in l_sent_treestr_2:
-            #print "create process: " + str(proc_id)
-            RECV_PORT += 2
-            p = Process(target = sent_pair_sim, args = (sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i))
+            #TODO:
+            #remove for-loop
+            #if (proc_id+5000*proc_batch) >= 4940000: 
+            RECV_PORT += 1
+            RECV_PORT = RECV_PORT % 50000 
+            if RECV_PORT <= 2001:
+                RECV_PORT += 2001
+            p = multiprocessing.Process(target = sent_pair_sim, args = (sent_treestr_1, sent_treestr_2, sim_arr, sim_arr_i, RECV_PORT))
             proc_id += 1
             sim_procs.append(p)
             sim_arr_i += 1
             p.start()
+            #else:
+            #    proc_id += 1
+            #    sim_arr_i += 1
+
+            if proc_id >= 5000:
+                proc_batch += 1
+                proc_id = 0
+                print "[DBG]: task count = " + str(proc_batch*5000+proc_id)
+                print "[DBG]: sim array ="
+                print "----------------------------------------"
+                print sum(sim_arr)
+                print "----------------------------------------"
+            elif len(l_sent_treestr_1)*len(l_sent_treestr_2)-(proc_batch*5000+proc_id) <= 5000:
+                print "[DBG]: task count = " + str(proc_batch*5000+proc_id)
+                print "[DBG]: sim array ="
+                print "----------------------------------------"
+                print sum(sim_arr)
+                print "----------------------------------------"
+            #print "create process: " + str(p.pid)
+            if len(sim_procs) >= MAX_PROC:
+                #print "[DBG]: cool down 1"
+                sim_procs_cool_down(sim_procs)
+                #print "[DBG]: sim procs:" + str(len(sim_procs)) 
             #p.join()
-    while(len(sim_procs) != 0):
-        for proc in sim_procs:
-            #print "join:" + proc.name
-            if not proc.is_alive():
-                sim_procs.remove(proc)
-            proc.join(1)
-    print "[DBG]: doc_pair_sim is done!"
-    print "[DBG]: " + " ".join(map(str, sim_arr))
+    #print "[DBG]: cool down 2"
+    sim_procs_cool_down(sim_procs)
+    #print "[DBG]: doc_pair_sim is done!"
+    #print "[DBG]: " + " ".join(map(str, sim_arr))
     ret = sum(sim_arr)
     print "[DBG]: " + "final doc sim = " + str(ret)
     return ret
@@ -339,17 +448,25 @@ def fetchTreeStrFromDB(db_conn, user_id, time_s, time_e):
 
 # this function compute the text similarity between two users given a text data within a specified period for each user.
 # e.g. EA9kAjiQqhgGVWFW-3cMoA, 5VB78863WVpziQEkorI0-Q, 2017-07-01T00:00:00Z, 2017-08-01T00:00:00Z, 2017-05-01T00:00:00Z, 2017-06-01T00:00:00Z
-def user_time_text_sim(user_1, user_2, mon_1_s, mon_1_e, mon_2_s, mon_2_e):
-    l_sent_treestr_1 = fetchTreeStrFromDB(db_conn,"d--BOWLtOdsBjJ3gd6f6CQ", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
-    l_sent_treestr_2 = fetchTreeStrFromDB(db_conn,"I6Q3h_7eGc8bBB6dC4oTxg", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
+def user_time_text_sim(db_conn, user_1, user_2, mon_1_s, mon_1_e, mon_2_s, mon_2_e):
+    #l_sent_treestr_1 = fetchTreeStrFromDB(db_conn,"d--BOWLtOdsBjJ3gd6f6CQ", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
+    #l_sent_treestr_2 = fetchTreeStrFromDB(db_conn,"I6Q3h_7eGc8bBB6dC4oTxg", "2017-08-01T00:00:00Z", "2017-09-01T00:00:00Z")
     #print len(l_sent_treestr_1)*len(l_sent_treestr_2)
+    l_sent_treestr_1 = fetchTreeStrFromDB(db_conn, user_1, mon_1_s, mon_1_e)
+    l_sent_treestr_2 = fetchTreeStrFromDB(db_conn, user_2, mon_2_s, mon_2_e)
+    print "[DBG]: total task: " + str(len(l_sent_treestr_1)*len(l_sent_treestr_2))
     sim = doc_pair_sim(l_sent_treestr_1, l_sent_treestr_2, len(l_sent_treestr_1)*len(l_sent_treestr_2))
     return sim
     
 
 
 # e.g. EA9kAjiQqhgGVWFW-3cMoA, 5VB78863WVpziQEkorI0-Q, 2017-07-01T00:00:00Z, 2017-08-01T00:00:00Z, 2017-05-01T00:00:00Z, 2017-06-01T00:00:00Z, outputfile
+
+#err_sent_tree_str = '(ROOT (S L:Actually (VP L:changed (SBAR (S (NP (NP L:default L:line L:endings) (VP L:setting (NP L:version L:git) (SBAR (S (S (VP L:bundle (NP L:Windows L:binaries))) (S L:appveyor (VP L:checking L:test)))))) (VP L:files (NP L:unix L:line L:endings)))))))'
+#|(ROOT (S (VP (VP L:failure (SBAR (S (VP L:run (NP L:test L:data L:files))))) (ADJP L:due (S (S L:equaling))))))'
+
 def main():
+#=========================================================
     user_1 = str(sys.argv[1]).strip()
     user_2 = str(sys.argv[2]).strip()
     t_1_s = str(sys.argv[3]).strip()
@@ -357,14 +474,18 @@ def main():
     t_2_s = str(sys.argv[5]).strip()
     t_2_e = str(sys.argv[6]).strip()
     output_file = str(sys.argv[7]).strip()
-    #sim = user_time_text_sim(user_1, user_2, t_1_s, t_1_e, t_2_s, t_2_e)
-    sim = 12.234
+    db_conn = sqlite3.connect(DB_CONN_STR) 
+    sim = user_time_text_sim(db_conn, user_1, user_2, t_1_s, t_1_e, t_2_s, t_2_e)
     ret = '|'.join([user_1, user_2, t_1_s, t_1_e, t_2_s, t_2_e, str(sim)]) + '\n'
     with open(output_file, 'a+') as f_out:
         f_out.write(ret)
         f_out.close()
-
-
+    db_conn.close()
+#=========================================================
+    #err_sent_tree = Tree.fromstring(err_sent_tree_str)
+    #print err_sent_tree
+    #err_sent_tree_graph = treestr_to_graph(err_sent_tree_str, 's1')
+    #print err_sent_tree_graph.edges()
     #con_sent_tree = Tree.fromstring(con_sent_tree_str)
     #t_production = con_sent_tree.productions()
     #print con_sent_tree

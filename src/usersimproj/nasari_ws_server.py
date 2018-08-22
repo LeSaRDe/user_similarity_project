@@ -4,8 +4,8 @@ import os
 from multiprocessing.dummy import Pool
 
 SERV_PORT = 8306
-WV_MODEL_BIN = "/home/fcmeng/nasari/NASARIembed+UMBC_w2v.bin"
-WV_MODEL = "/home/fcmeng/nasari/NASARIembed+UMBC_w2v_model"
+WV_MODEL_BIN = "/hpchome/fcmeng/nasari/NASARIembed+UMBC_w2v.bin"
+WV_MODEL = "/hpchome/fcmeng/nasari/NASARIembed+UMBC_w2v_model"
 
 g_wv_model = None
 g_serv_sock = None
